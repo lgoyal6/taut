@@ -7,6 +7,27 @@ Format: newest at top within each week.
 
 ## Week 1 — foundations (codec + fuzz + event loop skeleton)
 
+### S2 — crc32c  (codec pending)  (date: 2026-07-20)
+
+**Decisions D6–D12 recorded** in docs/DECISIONS.md (all "go with recommended"):
+table-driven CRC; software-first-then-HW; DecodeError enum; zero-copy payload; shift-based
+LE; two-chunk CRC; GoogleTest.
+
+**Shipped (crc32c only — codec gated on the golden vector):**
+- `include/taut/crc32c.h` + `src/crc32c.cc`: table-driven Sarwate CRC-32C (reflected
+  Castagnoli poly), one-shot + incremental (init/update/final) API for the codec's
+  two-chunk CRC. `docs/DESIGN-crc32c.md`.
+- GoogleTest via FetchContent; `tests/unit/crc32c_test.cc`; relaxed test warning set.
+- Verified in Lima under ASan/UBSan: 5/5 pass incl. canonical check `0xE3069283` and
+  empty=0; clang-format clean.
+
+**Blocked on Laksh (codec):** hand-laid golden-vector header bytes for the DATA packet
+(class 2, seq 1, cum_ack 0, adv_window 64, payload "hi"); I supply the CRC and cross-check
+his byte layout, then implement encode/decode.
+
+**Gate owed at S2 end** (crc32c + codec together): explain-back, prediction, hand-trace,
+planted-bug hunt — before any Week 2 module.
+
 ### S1 — repo scaffold + codec design  (date: 2026-07-20)
 
 **Shipped (non-CORE — no gate owed):**
@@ -31,10 +52,16 @@ All reference defaults, plus the class-0 clarification (DESIGN-codec.md #3).
 no CMake warnings; clang-format applied and clean. Repo mounts read-write via virtiofs at
 `/Users/lakshgoyal/taut`. CI not yet run (first push validates the GitHub Actions matrix).
 
+**Committed + pushed:** root commit `de4073c` on `main`, pushed to
+`github.com/lgoyal6/taut` (private). **CI green** — `ci` run success in 35 s (dev + release
+build/test + clang-format check). S1 is DONE.
+
 **Owed by Laksh before S2 CORE implementation can start:**
-1. ~~Lima up + build/test/format green~~ — done (verified above); still: commit + push.
+1. ~~Lima up + build/test/format green; commit + push; CI green~~ — done.
 2. Fill the `Rationale (Laksh)` lines in `docs/DECISIONS.md` (D1–D5), in his own words.
-3. Hand-compute the first codec golden vectors on paper (§6.1) — this precedes the S2 code.
+3. Hand-lay-out the first codec golden vector on paper (§6.1) — precedes the S2 code.
+
+(S2 progress tracked in its own entry above.)
 
 **S2 (next, CORE — gated):** crc32c + codec encode/decode. Starts with a design brief and
 Laksh's golden vectors; ends with the comprehension gate (explain-back, prediction,

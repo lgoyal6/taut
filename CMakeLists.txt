@@ -18,6 +18,7 @@ option(TAUT_BUILD_TESTS "Build taut tests" ON)
 # public API sketch headers (Week 1 S1).
 add_library(taut STATIC
     src/version.cc
+    src/crc32c.cc
 )
 target_include_directories(taut PUBLIC include)
 target_compile_features(taut PUBLIC cxx_std_20)

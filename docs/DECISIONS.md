@@ -31,3 +31,38 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 ### D5. Endianness **little-endian**; max datagram **1200 B**; magic **0x7A 0x75**
 - Field sizes: seq u32, cum_ack u32, adv_window u16 (packets), payload_len u16, crc u32.
 - Rationale (Laksh): _______________________________________________
+
+---
+
+## Week 1 S2 — crc32c + codec implementation
+
+### D6. CRC32C software algorithm: **table-driven (Sarwate, 256-entry)**
+- Over bitwise (8× slower) and slicing-by-8 (faster, more tables/complexity).
+- Rationale (Laksh): _______________________________________________
+
+### D7. CRC32C rollout: **software first (verified vs known vectors), then HW path**
+- HW (`_mm_crc32` / `__crc32cd`) is a follow-on behind a runtime self-check (HW == software
+  on a fixed vector at init).
+- Rationale (Laksh): _______________________________________________
+
+### D8. Codec error handling: **`DecodeError` enum + out-param** (no exceptions)
+- Over `std::optional<Packet>` (C++20 has no `std::expected`; no third-party deps in src).
+  Enum gives fuzz-diagnosable reject reasons (TooShort/BadMagic/BadVersion/BadCrc/...).
+- Rationale (Laksh): _______________________________________________
+
+### D9. Codec decode payload: **zero-copy `ByteSpan` view into the input buffer**
+- Over copy-on-decode; the loop owns buffer lifetime, so no allocation on the hot path.
+- Rationale (Laksh): _______________________________________________
+
+### D10. Integer access: **shift-based little-endian load/store helpers**
+- Over memcpy+bswap; portable, no aliasing/alignment UB, UBSan-clean.
+- Rationale (Laksh): _______________________________________________
+
+### D11. CRC-field handling: **two-chunk CRC** (bytes [0,17) + 4 zero bytes + [21,end))
+- Over copy-and-zero; same result, no full-packet copy.
+- Rationale (Laksh): _______________________________________________
+
+### D12. Test framework: **GoogleTest via FetchContent** (tooling)
+- Minor: over doctest; industry-standard and recognizable. Test targets use a relaxed
+  warning set (`-Wall -Wextra`, no `-Werror`) so framework headers don't break the build.
+- Rationale (Laksh): _______________________________________________
