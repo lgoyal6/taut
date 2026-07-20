@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [dev, release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+      - name: clang-format --dry-run --Werror
+        run: |
+          find include src tests -type f \( -name '*.cc' -o -name '*.h' \) -print0 \
+            | xargs -0 clang-format --dry-run --Werror
+
+# TODO — enabled as modules land, per PLAN §2 (do not add a job before its code exists):
+#   * clang-tidy         : once src/ has real translation units (Week 1 S2)
+#   * fuzz smoke (60 s)  : ./fuzz/run_fuzz.sh decode 60 (Week 1 S3)
+#   * sim scenario suite : deterministic SimNet tests (Week 2)
