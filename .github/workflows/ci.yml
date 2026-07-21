@@ -37,7 +37,43 @@ jobs:
           find include src tests -type f \( -name '*.cc' -o -name '*.h' \) -print0 \
             | xargs -0 clang-format --dry-run --Werror
 
-# TODO — enabled as modules land, per PLAN §2 (do not add a job before its code exists):
-#   * clang-tidy         : once src/ has real translation units (Week 1 S2)
-#   * fuzz smoke (60 s)  : ./fuzz/run_fuzz.sh decode 60 (Week 1 S3)
-#   * sim scenario suite : deterministic SimNet tests (Week 2)
+  clang-tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang clang-tidy cmake ninja-build
+      - name: Configure (compile_commands.json for the library only)
+        run: cmake --preset dev -DTAUT_BUILD_TESTS=OFF
+      - name: clang-tidy (src + public headers; checks in .clang-tidy)
+        run: clang-tidy -p build/dev src/*.cc
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build
+      - name: fuzz_decode 60 s smoke (ASan/UBSan, must stay crash-free)
+        run: ./fuzz/run_fuzz.sh decode 60
+
+  sim-suite:
+    # Deterministic SimNet scenario suite (§6.3): seeded loss/reorder/dup/delay transfers
+    # over the in-process simulator, run under ASan/UBSan. Seed-reproducible by construction.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build
+      - name: Configure
+        run: cmake --preset dev
+      - name: Build unit/sim tests
+        run: cmake --build --preset dev --target taut_unit
+      - name: Run SimNet + Session scenarios
+        run: ctest --preset dev -R 'SimNet\.|Session\.' --output-on-failure
