@@ -88,3 +88,37 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 - Patch mode forces structural fields valid and fixes the CRC so coverage reaches the
   parser; a decoded packet must re-encode to its own bytes, else the fuzzer traps.
 - Rationale (Laksh): _______________________________________________
+
+---
+
+## feat/core — SACK + reliability classes + flow control
+
+### D17. Fast retransmit trigger: **≥ 3 SACKed slots above an un-SACKed slot**
+- The Reno 3-dup-ack heuristic expressed on the SACK bitmap. SACKing a slot also cancels its
+  RTO (a received packet is never resent) and takes its RTT sample early.
+- Alternatives: RTO-only recovery (slow — the whole reason goodput collapses under loss);
+  retransmit on the first gap seen (too eager — reorder would trigger spurious resends).
+- Rationale (Laksh): _______________________________________________
+
+### D18. Class dispatch on the rx path: **shared reliable seq space, per-class delivery**
+- Class 1 delivers on arrival and leaves a payload-less `reasm_` marker (for cum_ack/SACK/
+  dedup); class 2 buffers for in-order delivery; class 0 uses a separate 64-seq anti-replay
+  dedup window and is never acked/retransmitted (D2).
+- Alternative: per-class sequence spaces (rejected in D2 — triples bookkeeping).
+- Rationale (Laksh): _______________________________________________
+
+### D19. `adv_window` counts **only the app-delivery queue**, not out-of-order reassembly
+- Out-of-order data sits within the sender's in-flight window, which `adv_window` already
+  bounds; subtracting it again would double-count. Lets invariant 3 hold literally for class 2
+  and keeps no-overflow structural (see docs/DESIGN-flow.md).
+- Alternative: count all buffered packets (over-tight, transiently violates invariant 3 even
+  for ordered traffic).
+- Rationale (Laksh): _______________________________________________
+
+### D20. Zero-window handling: **bounded internal send queue + PROBE_WINDOW persist timer**
+- `send()` parks reliable messages in a bounded `pending_` queue so the session knows it has
+  data to send while the window is shut; a persist timer (100 ms, ×2, cap 1 s) sends a
+  dedicated `PROBE_WINDOW` packet when `pending && adv_window==0 && ring empty`, so a lost
+  window-reopening ack can't deadlock.
+- Alternative: rely on data-packet RTO to re-probe (fails when nothing is in flight).
+- Rationale (Laksh): _______________________________________________

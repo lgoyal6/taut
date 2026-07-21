@@ -43,6 +43,20 @@ void store_u32_le(std::span<std::byte> b, std::size_t off, std::uint32_t v) {
     store_u8(b, off + 3, static_cast<std::uint8_t>((v >> 24) & 0xFFu));
 }
 
+std::uint64_t load_u64_le(std::span<const std::byte> b, std::size_t off) {
+    std::uint64_t v = 0;
+    for (std::size_t i = 0; i < 8; ++i) {
+        v |= static_cast<std::uint64_t>(load_u8(b, off + i)) << (8 * i);
+    }
+    return v;
+}
+
+void store_u64_le(std::span<std::byte> b, std::size_t off, std::uint64_t v) {
+    for (std::size_t i = 0; i < 8; ++i) {
+        store_u8(b, off + i, static_cast<std::uint8_t>((v >> (8 * i)) & 0xFFu));
+    }
+}
+
 // CRC field lives at offsets [17, 21). The checksum covers the whole datagram with those
 // 4 bytes treated as zero.
 constexpr std::size_t kCrcOffset = 17;
@@ -50,14 +64,17 @@ constexpr std::size_t kCrcOffset = 17;
 } // namespace
 
 std::size_t encode(const Packet& pkt, std::span<std::byte> out) {
-    if (pkt.flags != 0) {
-        return 0; // SACK / membership emit not yet supported
+    // Only the SACK bit is emittable; membership/keyed-CRC are not yet handled.
+    if ((pkt.flags & ~static_cast<std::uint8_t>(Flag::SackPresent)) != 0) {
+        return 0;
     }
+    const bool sack = (pkt.flags & static_cast<std::uint8_t>(Flag::SackPresent)) != 0;
+    const std::size_t header_len = kBaseHeaderSize + (sack ? kSackSize : 0);
     const std::size_t payload_len = pkt.payload.size();
     if (payload_len > 0xFFFFu) {
         return 0;
     }
-    const std::size_t total = kBaseHeaderSize + payload_len;
+    const std::size_t total = header_len + payload_len;
     if (total > kMaxDatagram || out.size() < total) {
         return 0;
     }
@@ -74,9 +91,12 @@ std::size_t encode(const Packet& pkt, std::span<std::byte> out) {
     store_u16_le(out, 13, pkt.adv_window);
     store_u16_le(out, 15, static_cast<std::uint16_t>(payload_len));
     store_u32_le(out, kCrcOffset, 0); // placeholder; CRC is computed over this as zero
+    if (sack) {
+        store_u64_le(out, kBaseHeaderSize, pkt.sack);
+    }
 
     if (payload_len > 0) {
-        std::memcpy(out.data() + kBaseHeaderSize, pkt.payload.data(), payload_len);
+        std::memcpy(out.data() + header_len, pkt.payload.data(), payload_len);
     }
 
     // CRC field is currently zero, so a one-shot over the whole datagram is exactly
@@ -100,28 +120,39 @@ DecodeError decode(std::span<const std::byte> in, Packet& out) {
         return DecodeError::BadVersion;
     }
 
+    // Read the SACK-present bit to size the packet before the CRC check (the field is at
+    // offset 3, always within the 21 B we've already length-checked). A corrupted bit0 makes
+    // header_len/total wrong, so decode fails as LengthOverrun or, if sizes still line up,
+    // BadCrc — never a misparse (see DESIGN-codec.md check-order note).
+    const std::uint8_t flags = load_u8(in, 3);
+    const bool sack = (flags & static_cast<std::uint8_t>(Flag::SackPresent)) != 0;
+    const std::size_t header_len = kBaseHeaderSize + (sack ? kSackSize : 0);
+    if (in.size() < header_len) {
+        return DecodeError::TooShort; // not enough bytes for the flagged SACK section
+    }
+
     const std::uint16_t payload_len = load_u16_le(in, 15);
-    const std::size_t total = kBaseHeaderSize + payload_len;
+    const std::size_t total = header_len + payload_len;
     if (total > kMaxDatagram || in.size() != total) {
         return DecodeError::LengthOverrun;
     }
 
     // Verify integrity before trusting any other field: CRC over [0,17) + 4 zero bytes
-    // (the zeroed crc field) + [21, total). Uses the incremental API (D11) — no copy.
+    // (the zeroed crc field) + [21, total). The [21,total) chunk covers the SACK section and
+    // payload alike. Uses the incremental API (D11) — no copy.
     const std::uint32_t stored_crc = load_u32_le(in, kCrcOffset);
     static constexpr std::array<std::byte, 4> kZeroCrc{};
     std::uint32_t crc = crc32c_init();
     crc = crc32c_update(crc, in.subspan(0, kCrcOffset));
     crc = crc32c_update(crc, kZeroCrc);
-    crc = crc32c_update(crc, in.subspan(kBaseHeaderSize, payload_len));
+    crc = crc32c_update(crc, in.subspan(kBaseHeaderSize, total - kBaseHeaderSize));
     crc = crc32c_final(crc);
     if (crc != stored_crc) {
         return DecodeError::BadCrc;
     }
 
-    const std::uint8_t flags = load_u8(in, 3);
-    if (flags != 0) {
-        return DecodeError::Unsupported; // SACK / membership not parsed yet
+    if ((flags & ~static_cast<std::uint8_t>(Flag::SackPresent)) != 0) {
+        return DecodeError::Unsupported; // membership / keyed-CRC not parsed yet
     }
     const std::uint8_t cls_raw = load_u8(in, 4);
     if (cls_raw > static_cast<std::uint8_t>(Class::ReliableOrdered)) {
@@ -135,7 +166,8 @@ DecodeError decode(std::span<const std::byte> in, Packet& out) {
     out.seq = load_u32_le(in, 5);
     out.cum_ack = load_u32_le(in, 9);
     out.adv_window = load_u16_le(in, 13);
-    out.payload = in.subspan(kBaseHeaderSize, payload_len);
+    out.sack = sack ? load_u64_le(in, kBaseHeaderSize) : 0;
+    out.payload = in.subspan(header_len, payload_len);
     return DecodeError::Ok;
 }
 
