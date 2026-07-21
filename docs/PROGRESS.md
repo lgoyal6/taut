@@ -26,9 +26,18 @@ PLAN §5 reference design. Functional gates retained: unit/sim tests, the 10 MB 
 - Verified in Lima: 23/23 tests (4 new) — in-order no-loss delivery, clock-gated delay,
   seed-reproducible loss, intact round-trip. clang-format clean.
 
-**Remaining for Week 2:** send-buffer ring + stop-and-wait ARQ (reliable at 5% sim loss);
-then sliding window (64) + cumulative acks + RTO/Karn + SimNet invariant scenarios; then
-send_file/recv_file + veth/netem soak → the hard checkpoint.
+### S1c — reliable session (send ring + acks + retransmit)  (date: 2026-07-20)
+- `session.{h,cc}`: per-peer reliable engine over `UdpTransport` — send-buffer ring
+  (`std::deque<Slot>`, stores encoded datagrams for straight resend), next-expected
+  (TCP-style) cumulative acks, in-order class-2 delivery with `reasm_` buffering,
+  exponential-backoff retransmit on RTO (fixed 50 ms for now) via the timer heap.
+  poll()/tick() driven. `docs/DESIGN-window.md` (notes the cum_ack = next-expected deviation).
+- Verified in Lima: 26/26 tests (3 new) — stop-and-wait (window=1) delivers 100 messages
+  exactly once, in order, at 0/5/20% loss (invariants 1, 2, 3, 5). clang-format clean.
+
+**Remaining for Week 2:** sliding window (64) + RTO Jacobson/Karn + more SimNet invariant
+scenarios; then send_file/recv_file + veth/netem soak → the hard checkpoint (10 MB, 5% loss,
+sha256-identical, 20× green).
 
 ## Week 1 — foundations (codec + fuzz + event loop skeleton)
 
