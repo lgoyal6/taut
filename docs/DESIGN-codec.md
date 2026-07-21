@@ -89,5 +89,33 @@ reconciles the loose §5.1 sketch, where the name reads as if payload could be a
 ## Golden vectors (Laksh writes these first, by hand — §6.1)
 Before the encoder/decoder is implemented (S2), Laksh hand-computes on paper: (a) one
 DATA packet's exact bytes incl. CRC32C, (b) the decoded struct for a known byte array,
-(c) a one-bit-flip case that must be rejected. Committed under `tests/golden/`. That
-exercise is where the format becomes his.
+(c) a one-bit-flip case that must be rejected. That exercise is where the format becomes
+his. (Committed as `kGolden` in `tests/unit/codec_test.cc`; Laksh's hand-laid packet is
+`7a 75 11 00 02 01 00 00 00 00 00 00 00 40 00 02 00 cb 4e 6f c3 68 69`, CRC `0xC36F4ECB`.)
+
+## Codec implementation (Week 1 S2)
+
+Scope of the first codec: **base header (offsets 0–20) + payload + CRC**. The optional
+SACK bitmap and membership sections are *not* parsed yet — they arrive with the window
+(week 3) and SWIM (week 4) modules. Until then the decoder rejects any non-zero `flags`
+as `Unsupported` rather than misparsing (and `encode` refuses non-zero flags). This keeps
+the module small and gate-able; each optional section lands as its own increment with its
+own golden vector.
+
+**`DecodeError` taxonomy** (categorizable rejects, for fuzzing): `TooShort` (< 21 B),
+`BadMagic`, `BadVersion`, `LengthOverrun` (payload_len disagrees with datagram size, or
+size > 1200), `BadCrc`, `Unsupported` (non-zero flags or class > 2).
+
+**Decode check order** — `TooShort → BadMagic → BadVersion → length → CRC → flags → class`.
+CRC is verified *before* trusting `flags`/`class`, so a corrupted flag/class byte is caught
+as `BadCrc` (integrity gate) rather than misinterpreted. Length is checked before CRC
+because computing the CRC needs a bounded, exact-size buffer. A datagram must be exactly
+one packet — trailing bytes are `LengthOverrun`.
+
+**CRC computation.** Encode writes the crc field as zero, fills the payload, then takes a
+one-shot CRC over the whole datagram (the field is already zero) and writes it back. Decode
+can't zero the input, so it uses the incremental API in three chunks — `[0,17)` + four zero
+bytes + `[21, total)` — equivalent, no buffer copy (D11).
+
+**Deviation note:** `Config::mtu_payload` (1200) names the datagram budget; the codec caps
+`total = 21 + payload_len ≤ 1200`, so the real max payload is 1179 B (base header only).

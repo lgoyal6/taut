@@ -7,26 +7,58 @@ Format: newest at top within each week.
 
 ## Week 1 — foundations (codec + fuzz + event loop skeleton)
 
-### S2 — crc32c  (codec pending)  (date: 2026-07-20)
+### S3 — transport + epoll loop + echo demo + fuzzer  (date: 2026-07-20)
+
+**Decisions D13–D16** (docs/DECISIONS.md): level-triggered epoll; UdpTransport abstraction
+(real-socket impl now, SimNet week 2); eventfd wakeup now / timerfd deferred; fuzz_decode
+with CRC-patch coverage + round-trip invariant.
+
+**Shipped (all Linux-only except the codec/crc core):**
+- `transport.{h,cc}`: `UdpTransport` interface + `RealUdpTransport` (nonblocking UDP,
+  bind/send/recv/now/fd/local_endpoint) + `make_endpoint`.
+- `loop.{h,cc}`: single-threaded **level-triggered** `EventLoop` — epoll over the UDP fd +
+  eventfd wakeup/shutdown; per-fd drain-and-dispatch. timerfd slot deferred to week 2.
+- `demo/echo_{server,client}.cc`: two-process datagram echo.
+- `fuzz/fuzz_decode.cc` + `run_fuzz.sh`: libFuzzer harness, CRC-patch coverage mode,
+  re-encode round-trip invariant.
+- `tests/unit/loop_test.cc`: in-process epoll echo integration test.
+
+**Verified in Lima:** 14/14 unit tests pass (incl. `EventLoop.EchoesDatagramThroughEpoll`);
+`fuzz_decode` 1.27M execs in 21 s ASan/UBSan-clean (cov 110); two-process echo 10/10.
+clang-format clean. *(Follow-ups: curated seed corpus commit; full ≥1h fuzz run in CI.)*
+
+**GATE + W1 DRILL OWED (blocking before Week 2):** S3 gate (level/edge reasoning) + the
+§10 Week-1 defense drill. Not yet run.
+
+### S2 — crc32c + codec  (date: 2026-07-20)
 
 **Decisions D6–D12 recorded** in docs/DECISIONS.md (all "go with recommended"):
 table-driven CRC; software-first-then-HW; DecodeError enum; zero-copy payload; shift-based
 LE; two-chunk CRC; GoogleTest.
 
-**Shipped (crc32c only — codec gated on the golden vector):**
-- `include/taut/crc32c.h` + `src/crc32c.cc`: table-driven Sarwate CRC-32C (reflected
-  Castagnoli poly), one-shot + incremental (init/update/final) API for the codec's
-  two-chunk CRC. `docs/DESIGN-crc32c.md`.
-- GoogleTest via FetchContent; `tests/unit/crc32c_test.cc`; relaxed test warning set.
-- Verified in Lima under ASan/UBSan: 5/5 pass incl. canonical check `0xE3069283` and
-  empty=0; clang-format clean.
+**Shipped:**
+- `crc32c.{h,cc}`: table-driven Sarwate CRC-32C (reflected Castagnoli poly), one-shot +
+  incremental API. `docs/DESIGN-crc32c.md`.
+- `codec.{h,cc}`: base header + payload encode/decode, shift-based LE helpers, CRC over
+  datagram-with-crc-zeroed (one-shot on encode, incremental 3-chunk on decode), zero-copy
+  payload view, `DecodeError` taxonomy. SACK/membership deferred (non-zero flags rejected).
+- **Golden vector locked** — Laksh hand-laid the DATA packet (corrected on 2nd attempt;
+  1st had 5 errors: missing magic, wrong ver|type nibble, merged flags+class, 16-bit
+  seq/cum_ack, crc-after-payload + padding). Final: `7a 75 11 00 02 01 00 00 00 00 00 00 00
+  40 00 02 00 cb 4e 6f c3 68 69`, CRC `0xC36F4ECB`. Committed as `kGolden`.
+- Verified in Lima under ASan/UBSan: **13/13 tests pass** (crc32c 4 + codec 8 + smoke);
+  encode reproduces the golden bytes exactly; bit-flip/bad-magic/bad-version/truncation/
+  length-overrun all rejected. clang-format clean.
 
-**Blocked on Laksh (codec):** hand-laid golden-vector header bytes for the DATA packet
-(class 2, seq 1, cum_ack 0, adv_window 64, payload "hi"); I supply the CRC and cross-check
-his byte layout, then implement encode/decode.
+**S2 GATE: PASSED** (2026-07-20). Explain-back ✓ (minor: initially placed flags-check
+pre-CRC — it's post-CRC alongside class; invented enum names). Prediction ✓ — called
+`BadCrc` on an offset-4 flip with stale CRC, and *why* it beats the class check; verified
+by running decode. Hand-trace 3b ✓. Initial misses on 3a/4A (both the same mechanic: the
+zeroed crc field is hashed as 4 zero bytes → 23 bytes, not skipped → 19) corrected on
+re-quiz. Week 2 unblocked.
 
-**Gate owed at S2 end** (crc32c + codec together): explain-back, prediction, hand-trace,
-planted-bug hunt — before any Week 2 module.
+**Week 1 remaining:** none — S3 shipped (see its entry above). Week 1 closes after the S3
+gate + W1 defense drill.
 
 ### S1 — repo scaffold + codec design  (date: 2026-07-20)
 

@@ -11,6 +11,7 @@ include(Warnings)      # defines interface target: taut_warnings
 include(Sanitizers)    # applies -fsanitize globally when TAUT_SANITIZE is set
 
 option(TAUT_BUILD_TESTS "Build taut tests" ON)
+option(TAUT_BUILD_FUZZERS "Build libFuzzer targets (clang only)" OFF)
 
 # The core library. CORE modules (codec, window, rto, timers, rx, flow, swim, loop)
 # are added source-by-source through the PLAN §2 module loop — each behind its own
@@ -19,12 +20,30 @@ option(TAUT_BUILD_TESTS "Build taut tests" ON)
 add_library(taut STATIC
     src/version.cc
     src/crc32c.cc
+    src/codec.cc
 )
 target_include_directories(taut PUBLIC include)
 target_compile_features(taut PUBLIC cxx_std_20)
 target_link_libraries(taut PRIVATE taut_warnings)
 
+# epoll event loop + real UDP transport are Linux-only; the codec/crc stay portable.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_sources(taut PRIVATE
+        src/transport.cc
+        src/loop.cc
+    )
+endif()
+
 if(TAUT_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+# Demo binaries (echo_server/echo_client) use epoll → Linux only.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_subdirectory(demo)
+endif()
+
+if(TAUT_BUILD_FUZZERS)
+    add_subdirectory(fuzz)
 endif()

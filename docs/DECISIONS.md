@@ -66,3 +66,25 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 - Minor: over doctest; industry-standard and recognizable. Test targets use a relaxed
   warning set (`-Wall -Wextra`, no `-Werror`) so framework headers don't break the build.
 - Rationale (Laksh): _______________________________________________
+
+---
+
+## Week 1 S3 — event loop skeleton + transport + fuzzer
+
+### D13. epoll: **level-triggered** (not edge-triggered)
+- LT re-signals while data remains (can't lose a wakeup); ET signals once per transition
+  and demands full drain. Correctness-first; ET noted as future work.
+- Rationale (Laksh): _______________________________________________
+
+### D14. **`UdpTransport` abstraction** (send/recv/now/fd); real-socket impl in S3
+- SimNet (in-process, seeded, virtual clock) arrives week 2 for deterministic tests.
+- Rationale (Laksh): _______________________________________________
+
+### D15. Loop wiring: **eventfd** for wake/shutdown now; **timerfd** deferred to week 2
+- The timer heap and its timerfd land with the reliability core; S3 is a skeleton.
+- Rationale (Laksh): _______________________________________________
+
+### D16. `fuzz_decode`: **CRC-patch coverage mode + round-trip invariant**
+- Patch mode forces structural fields valid and fixes the CRC so coverage reaches the
+  parser; a decoded packet must re-encode to its own bytes, else the fuzzer traps.
+- Rationale (Laksh): _______________________________________________

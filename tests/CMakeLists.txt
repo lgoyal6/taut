@@ -16,7 +16,12 @@ add_test(NAME smoke COMMAND taut_smoke)
 # framework's headers don't trip the library's -Werror; the library itself stays strict.
 add_executable(taut_unit
     unit/crc32c_test.cc
+    unit/codec_test.cc
 )
+# The event-loop integration test needs epoll → Linux only.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_sources(taut_unit PRIVATE unit/loop_test.cc)
+endif()
 target_link_libraries(taut_unit PRIVATE taut taut_test_warnings GTest::gtest_main)
 
 include(GoogleTest)

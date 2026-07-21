@@ -1,4 +1,5 @@
 /build/
+fuzz/corpus/
 compile_commands.json
 *.o
 *.a
