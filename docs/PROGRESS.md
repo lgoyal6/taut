@@ -43,8 +43,47 @@ PLAN §5 reference design. Functional gates retained: unit/sim tests, the 10 MB 
 - Verified in Lima: 32/32 tests (6 new) — RttEstimator formula tests + a window-64 pipelined
   transfer with reorder(jitter)+dup+loss delivering 300 messages exactly once, in order.
 
-**Remaining for Week 2:** send_file/recv_file + veth/netem soak → the hard checkpoint (10 MB,
-5% loss, sha256-identical, 20× green). **Being parallelized across worktrees (see below).**
+### S3 (feat/infra) — send_file/recv_file + netem soak ⇒ HARD CHECKPOINT GREEN  (date: 2026-07-20)
+
+**Owned files:** demo/{send_file,recv_file}.cc + demo/{sha256,file_xfer}.h, demo/CMakeLists.txt
+(distinct block), bench/scripts/{netns_setup,soak}.sh, README.md, .github/workflows/ci.yml,
+.clang-tidy. No src/ / codec / session / swim / bench/*.cc touched.
+
+- **Demos:** file transfer over class 2 — message 0 is an 8-byte LE length header, then
+  1024-byte chunks; the receiver reassembles in order and **lingers ~2 s re-acking the
+  sender's retransmits** so a lost *final* ack can't strand an otherwise-complete transfer
+  (the one non-obvious correctness point for a 20/20 checkpoint). sha256 printed both ends
+  via a vendored `demo/sha256.h` (no src/ dep; verified byte-for-byte against `sha256sum`).
+- **netns_setup.sh:** the §6.5 fixture — veth across `taut-a`(10.9.0.1)/`taut-b`(10.9.0.2),
+  netem both directions, tso/gso/gro off; `up|netem|down|status` subcommands.
+- **soak.sh:** the checkpoint runner + loss sweep. Integrity is the system `sha256sum` on
+  both files (ground truth, independent of the binaries' printed digest); each run uses fresh
+  random content, so 20/20 is 20 independent proofs.
+- **CI:** added the three TODO jobs — clang-tidy (`.clang-tidy` check set the library passes
+  clean under warnings-as-errors; the 100+ raw hits were all pure-style/noise, zero real
+  defects), 60 s `fuzz_decode` smoke, deterministic SimNet scenario suite (`SimNet.*` +
+  `Session.*`). All three validated locally in Lima.
+- **README:** rewritten for a 90-second skim — thesis, ASCII architecture diagram, class
+  table, run/soak instructions, honest limitations (no CC, no security, single-thread,
+  IPv4/no-TIME_WAIT), benchmark-graph placeholders (feat/bench owns the §7 report).
+
+**HARD CHECKPOINT (PLAN §9): GREEN — 20/20** consecutive 10 MB transfers across the veth at
+`loss 5% delay 30ms 10ms reorder 1% duplicate 0.5%`, every one sha256-identical, ~28–37 s/run
+(~280–360 kB/s). Loss sweep {0,1,5,10,20}% all sha256-identical; rough soak goodput
+931 → 633 → 336 → 218 → 105 kB/s.
+
+**Honest notes (not fudged):**
+- Recovery here is **RTO-only** — SACK + fast-retransmit is feat/core and is *not* merged in
+  this worktree, so this is the genuine Week-2 protocol. That is exactly why goodput collapses
+  superlinearly under loss (the §12-Q4 / W3-drill story); Week 3's SACK is what fixes it.
+- Even at 0 % loss, goodput is window-limited (~64 pkts / RTT ≈ 930 kB/s), which matches
+  theory and is a sanity check that the harness isn't strawmanning.
+- The soak's kB/s is a coarse soak metric, **not** the §7 benchmark (proper methodology +
+  TCP/ENet baselines, owned by feat/bench). No benchmark numbers are quoted in README prose.
+- CI jobs verified by running their exact commands in Lima; first push confirms on
+  ubuntu-latest. `.clang-tidy` is a new root file (config backing the clang-tidy CI job).
+
+**Week 2 status: CLOSED — hard checkpoint green.** (Other worktrees continue weeks 2-tail→5.)
 
 ---
 

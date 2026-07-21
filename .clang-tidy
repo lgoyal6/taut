@@ -1,0 +1,22 @@
+# clang-tidy gate for the taut library (src/ + public headers). The enabled families are
+# the high-signal, low-false-positive ones (real correctness/perf/portability defects and
+# the static analyzer). The disabled entries are pure-style or noisy checks that flag no
+# actual defects in this codebase — leaving them on would make the gate break on cosmetics
+# rather than bugs. Verified: src/ + include/taut pass clean with WarningsAsErrors.
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  portability-*,
+  clang-analyzer-*,
+  misc-*,
+  modernize-*,
+  -misc-include-cleaner,
+  -misc-const-correctness,
+  -misc-non-private-member-variables-in-classes,
+  -modernize-use-trailing-return-type,
+  -modernize-use-auto,
+  -modernize-use-nodiscard,
+  -bugprone-easily-swappable-parameters
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'include/taut/.*'

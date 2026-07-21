@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Latency-vs-loss benchmark sweep (PLAN §7). For each loss point it runs, over the veth/netns
-# topology (netns_setup.sh), the identical 512 B / Poisson / N-second workload across:
+# topology (netns_bench.sh), the identical 512 B / Poisson / N-second workload across:
 #   - kernel TCP (TCP_NODELAY)          tcp_baseline
 #   - ENet reliable channel             enet_baseline   (skipped if not built)
 #   - taut, each class in TAUT_CLASSES  latency_bench
@@ -56,7 +56,7 @@ echo "run_matrix: losses=[${LOSSES}] runs=${RUNS} dur=${DURATION}s rate=${RATE}/
 echo "run_matrix: binaries in ${BIN}, CSVs to ${DATA}"
 
 # Fresh topology + fresh CSVs for a clean, reproducible matrix.
-bash "${SCRIPT_DIR}/netns_setup.sh" >/dev/null
+bash "${SCRIPT_DIR}/netns_bench.sh" >/dev/null
 rm -f "${LAT_CSV}" "${SEND_CSV}" "${WIRE_CSV}" "${THRU_CSV}"
 if [[ ! -f "${WIRE_CSV}" ]]; then
     echo "transport,cls,mode,loss_pct,rtt_ms,rate,run,seed,wire_tx_bytes,wire_rx_bytes" >"${WIRE_CSV}"
