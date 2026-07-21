@@ -25,6 +25,7 @@ add_library(taut STATIC
     src/sim_net.cc
     src/rto.cc
     src/session.cc
+    src/swim.cc
 )
 target_include_directories(taut PUBLIC include)
 target_compile_features(taut PUBLIC cxx_std_20)
