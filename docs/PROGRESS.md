@@ -19,9 +19,16 @@ PLAN §5 reference design. Functional gates retained: unit/sim tests, the 10 MB 
   `docs/DESIGN-timers.md`.
 - Verified in Lima under ASan: 19/19 unit tests (5 new timer tests) green; clang-format clean.
 
-**Remaining for Week 2:** SimNet (seeded, virtual-clock sim transport) + send-buffer ring +
-stop-and-wait ARQ (5% sim loss); then sliding window (64) + cumulative acks + RTO/Karn +
-SimNet invariant scenarios; then send_file/recv_file + veth/netem soak → the hard checkpoint.
+### S1b — SimNet deterministic sim transport  (date: 2026-07-20)
+- `sim_net.{h,cc}`: in-process `UdpTransport` with seeded `mt19937_64`, virtual clock, and
+  per-datagram loss/dup/delay/jitter; earliest-due delivery (reorder emerges from jitter).
+  `docs/DESIGN-simnet.md`.
+- Verified in Lima: 23/23 tests (4 new) — in-order no-loss delivery, clock-gated delay,
+  seed-reproducible loss, intact round-trip. clang-format clean.
+
+**Remaining for Week 2:** send-buffer ring + stop-and-wait ARQ (reliable at 5% sim loss);
+then sliding window (64) + cumulative acks + RTO/Karn + SimNet invariant scenarios; then
+send_file/recv_file + veth/netem soak → the hard checkpoint.
 
 ## Week 1 — foundations (codec + fuzz + event loop skeleton)
 

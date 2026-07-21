@@ -22,6 +22,7 @@ add_library(taut STATIC
     src/crc32c.cc
     src/codec.cc
     src/timers.cc
+    src/sim_net.cc
 )
 target_include_directories(taut PUBLIC include)
 target_compile_features(taut PUBLIC cxx_std_20)
