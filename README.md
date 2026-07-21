@@ -132,18 +132,22 @@ tail explodes past its ~200 ms `RTO_min` under loss while taut recovers on its 2
 
 | loss % | taut c1 | taut c2 | kernel TCP | ENet |
 |---|---|---|---|---|
-| 5  | 66 ms  | 92 ms  | 360 ms  | 137 ms |
-| 20 | 495 ms | 252 ms | 1902 ms | 997 ms |
+| 5  | 62 ms  | 92 ms  | 409 ms  | 148 ms  |
+| 20 | 281 ms | 278 ms | 3363 ms | 2997 ms |
 
 The price, same fixture: at 0 % loss kernel TCP saturates at ~235 Mbit/s vs taut's ~8.7 —
 TCP wins bulk throughput by ~27× (taut sends one datagram at a time, no batching):
 
 ![clean-link throughput](bench/data/throughput_cleanlink.png)
 
+taut's other price is bandwidth: under sustained load its bytes-on-wire climb from ~1.13× to
+~1.27× (at 10 % loss) as it retransmits, vs TCP's ~1.06–1.17× — ~15–20 % more wire bytes for
+the tail-latency win (`bench/data/overhead_vs_loss.png`).
+
 Real baselines (`TCP_NODELAY`, ENet), fixed seeds, raw CSVs committed; full method, tables,
 and the "why we lose where we lose" analysis are in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 (In this one-outstanding RR workload class 1 ≈ class 2; class 1's head-of-line-blocking win
-needs a pipelined load. Bandwidth-overhead-vs-loss plot pending an open-loop run.)
+needs a pipelined load with several messages in flight.)
 
 ## Limitations (deliberate — see PLAN §1 non-goals)
 

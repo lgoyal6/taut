@@ -18,19 +18,22 @@ Week 2 is complete; the abandon protocol is not triggered.
 
 **Benchmarks (§7): real data now committed.** Fixed the two harness bugs (`SO_REUSEADDR` on
 `RealUdpTransport::bind` → taut rebinds per loss point; ENet works on a fresh topology), then
-ran the full clean matrix `LOSSES="0 1 5 10 20" RUNS=5 DURATION=10` (RTT 30 ms, 512 B, seeds
-1–5, veth+netns, offloads off).
-- **Headline (p99 RR latency, median):** at 5% loss taut c1 66 / c2 92 vs TCP 360 / ENet 137 ms;
-  at 20% loss taut c2 252 / c1 495 vs TCP 1902 / ENet 997 ms — taut's tail is ~4–7× below TCP's.
-- **Clean-link throughput:** TCP 235 Mbit/s vs taut 8.7 (ENet 16) — TCP wins bulk ~27× (the
-  disclosed price). Plots: `latency_vs_loss.png`, `throughput_cleanlink.png` generated.
-- **Honesty caveats (recorded in BENCHMARKS.md/README):** (1) in one-outstanding RR, class 1 ≈
-  class 2 — c1's head-of-line-blocking win needs a *pipelined* load, not this closed-loop test;
-  (2) `overhead_vs_loss.png` / bandwidth-overhead ratio is **pending** an open-loop run
-  (`RUN_OPENLOOP=1`); (3) DURATION=10 is below PLAN §7's 60 s — tail ranking robust, p999 at
-  high loss from a few hundred samples.
-- **Snag hit + fixed:** the first background run orphaned and a relaunch ran concurrently,
-  contaminating CSVs; killed all, cleaned netns, re-ran a single clean instance (this data).
+ran the full clean matrix `LOSSES="0 1 5 10 20" RUNS=5 DURATION=10 RUN_OPENLOOP=1` (RTT 30 ms,
+512 B, seeds 1–5, veth+netns, offloads off).
+- **Headline (p99 RR latency, median):** at 5% loss taut c1 62 / c2 92 vs TCP 409 / ENet 148 ms;
+  at 20% loss taut ~280 vs TCP 3363 / ENet 2997 ms — taut's tail is ~6–12× below TCP's.
+- **Clean-link throughput:** TCP 235 Mbit/s vs taut 8.7 (ENet 16) — TCP wins bulk ~27%.
+- **Bandwidth overhead (sustained load):** taut ~1.13× (0%) → ~1.27× (10%) bytes-on-wire vs
+  TCP ~1.06–1.17× — ~15–20% more wire bytes for the tail win. All 3 plots generated
+  (`latency_vs_loss`, `throughput_cleanlink`, `overhead_vs_loss`).
+- **plot.py bug fixed:** overhead join used a `received` column that doesn't exist (the CSV
+  column is `replies`) → empty overhead table; corrected.
+- **Honesty caveats (in BENCHMARKS.md/README):** (1) one-outstanding RR ⇒ class 1 ≈ class 2
+  (c1's head-of-line-blocking win needs a pipelined load); (2) ENet overhead noisy at high loss
+  (median used); (3) DURATION=10 below PLAN §7's 60 s — tail ranking robust, p999 at high loss
+  from a few hundred samples.
+- **Snag hit + fixed earlier:** a first run orphaned and a relaunch ran concurrently,
+  contaminating CSVs; killed all, cleaned netns, re-ran single clean instances (this data).
 
 ---
 

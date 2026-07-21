@@ -98,7 +98,7 @@ def write_summary_overhead(lat_rows, wire_rows, data_dir, msg_size):
         if r.get("mode") != "latency":
             continue
         k = (r["transport"], r.get("cls", ""), fnum(r, "loss_pct"), r.get("run"))
-        recv[k] = fnum(r, "received")
+        recv[k] = fnum(r, "replies")  # goodput = messages received (CSV column is "replies")
     by = defaultdict(lambda: defaultdict(list))
     for w in wire_rows:
         if w.get("mode") != "latency":
