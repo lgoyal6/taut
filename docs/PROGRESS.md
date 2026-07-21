@@ -5,6 +5,25 @@ Format: newest at top within each week.
 
 ---
 
+## Final status — v0.1.0 (2026-07-21)
+
+Shipped and verified: codec + CRC32C (hand-laid golden vector + libFuzzer, ASan/UBSan-clean),
+level-triggered epoll loop + UDP transport, hand-built timer min-heap, deterministic SimNet,
+reliable session (SACK + fast-retransmit, RTO Jacobson/Karn, classes 0/1/2, flow control +
+zero-window persist probe), SWIM membership + `mesh_node`, file-transfer demos.
+**Week-2 hard checkpoint PASSED 20/20** (10 MB, 5 % loss, sha256-identical). Benchmarks real —
+all three plots: p99 ~6–12× below kernel TCP under 5–20 % loss at ~1.2× bandwidth overhead; TCP
+wins bulk throughput ~27× (disclosed). **CI green** after the clang-tidy fix (build/test dev +
+release, format, clang-tidy, fuzz-smoke, sim-suite). Tagged **v0.1.0**. Resume bullet drafted in
+`docs/RESUME.md`.
+
+**Honest gaps (not done):** Week-5 profiling + `recvmmsg`/`sendmmsg` batching (optional, skipped);
+`DURATION=60` publication run (used 10 s — tail *ranking* robust); the 25 `docs/DECISIONS`
+rationales are blank and the weeks-2–5 comprehension gates were dropped (full-drop mode) — the
+code and numbers are real, but defending the design cold is homework still owed (see RESUME.md).
+
+---
+
 ## Integration + Week-2 checkpoint (2026-07-20)
 
 Four parallel feature branches merged into `main` (core, bench, swim, infra), integrated
