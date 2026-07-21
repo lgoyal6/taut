@@ -51,3 +51,12 @@ endif()
 if(TAUT_BUILD_FUZZERS)
     add_subdirectory(fuzz)
 endif()
+
+# ---- Benchmarks (§7) — opt-in; not part of the default dev/CI loop ---------------------
+# taut vs kernel-TCP vs ENet latency matrix. Off by default (ENet FetchContent needs network
+# at configure time; sanitizers would corrupt the numbers). Configure a release build with
+# -DTAUT_BUILD_BENCH=ON to build bench/latency_bench, tcp_baseline, enet_baseline.
+option(TAUT_BUILD_BENCH "Build benchmark binaries (taut/TCP/ENet latency matrix)" OFF)
+if(TAUT_BUILD_BENCH AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_subdirectory(bench)
+endif()
