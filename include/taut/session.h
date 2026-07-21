@@ -11,6 +11,7 @@
 
 #include "taut/codec.h"
 #include "taut/config.h"
+#include "taut/rto.h"
 #include "taut/timers.h"
 #include "taut/transport.h"
 #include "taut/types.h"
@@ -61,7 +62,8 @@ class Session {
         TimerId timer;
         std::chrono::milliseconds rto;
         std::uint32_t transmit_count;
-        std::vector<std::byte> datagram; // full encoded packet, ready to resend
+        std::chrono::steady_clock::time_point send_time; // first transmit, for RTT (Karn)
+        std::vector<std::byte> datagram;                 // full encoded packet, ready to resend
     };
     struct RxItem {
         Class cls;
@@ -77,6 +79,7 @@ class Session {
     UdpTransport& tx_;
     Endpoint peer_;
     Config cfg_;
+    RttEstimator rtt_;
     MessageHandler on_message_;
 
     // send side

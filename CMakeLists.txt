@@ -23,6 +23,7 @@ add_library(taut STATIC
     src/codec.cc
     src/timers.cc
     src/sim_net.cc
+    src/rto.cc
     src/session.cc
 )
 target_include_directories(taut PUBLIC include)

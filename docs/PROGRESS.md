@@ -35,9 +35,31 @@ PLAN §5 reference design. Functional gates retained: unit/sim tests, the 10 MB 
 - Verified in Lima: 26/26 tests (3 new) — stop-and-wait (window=1) delivers 100 messages
   exactly once, in order, at 0/5/20% loss (invariants 1, 2, 3, 5). clang-format clean.
 
-**Remaining for Week 2:** sliding window (64) + RTO Jacobson/Karn + more SimNet invariant
-scenarios; then send_file/recv_file + veth/netem soak → the hard checkpoint (10 MB, 5% loss,
-sha256-identical, 20× green).
+### S2 — sliding window + RTO (Jacobson/Karn)  (date: 2026-07-20)
+- `rto.{h,cc}`: RFC 6298 SRTT/RTTVAR/RTO estimator; floor = rto_floor (thesis knob), cap 2 s,
+  initial 200 ms. `docs/DESIGN-rto.md`.
+- `session`: base RTO now from the estimator; RTT sampled only from never-retransmitted acks
+  (Karn); window widened past 1 (pipelining).
+- Verified in Lima: 32/32 tests (6 new) — RttEstimator formula tests + a window-64 pipelined
+  transfer with reorder(jitter)+dup+loss delivering 300 messages exactly once, in order.
+
+**Remaining for Week 2:** send_file/recv_file + veth/netem soak → the hard checkpoint (10 MB,
+5% loss, sha256-identical, 20× green). **Being parallelized across worktrees (see below).**
+
+---
+
+## Parallel workstreams (2026-07-20) — weeks 2-tail through 5
+
+Split across 4 git worktrees / branches to run as parallel agent sessions. File ownership is
+disjoint to minimize conflict; shared files (CMakeLists.txt, docs/PROGRESS.md, DECISIONS.md)
+merge trivially. Merge **feat/core first** (others build on the finished protocol).
+- **feat/core** — SACK + fast-retransmit, class 0/1/2 rx semantics, flow control + zero-window
+  probe. Owns codec.{h,cc}, session.{h,cc}, new rx/flow, their tests.
+- **feat/bench** — latency/goodput benchmarks vs kernel TCP (TCP_NODELAY) + ENet; bench/,
+  BENCHMARKS.md, ENet via FetchContent.
+- **feat/swim** — SWIM membership state machine + mesh_node demo (SimNet; no codec edits).
+- **feat/infra** — send_file/recv_file, veth/netem soak + the 20× checkpoint runner, README,
+  CI jobs (clang-tidy, fuzz smoke, sim suite).
 
 ## Week 1 — foundations (codec + fuzz + event loop skeleton)
 

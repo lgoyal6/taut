@@ -1,5 +1,6 @@
 #include "taut/session.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -24,15 +25,16 @@ taut::Endpoint ep(std::uint16_t port) {
     return e;
 }
 
-// Run a stop-and-wait (window=1) transfer of `n` ordered messages A->B over a lossy SimNet,
-// and assert every message is delivered exactly once, in send order.
-void run_transfer(std::uint64_t seed, double loss, int n) {
-    taut::SimNet net(seed, taut::Impairments{.loss = loss, .delay = 5ms});
+// Transfer `n` ordered messages A->B over a lossy/impaired SimNet with the given send
+// window, then assert every message arrives exactly once, in send order (invariants 1,2,3,5).
+void run_transfer(std::uint64_t seed, taut::Impairments imp, std::uint16_t window, int n,
+                  int max_iters, std::chrono::milliseconds step) {
+    taut::SimNet net(seed, imp);
     const auto a = ep(1);
     const auto b = ep(2);
 
     taut::Config cfg;
-    cfg.window_pkts = 1; // stop-and-wait
+    cfg.window_pkts = window;
 
     taut::Session sa(net.endpoint(a), b, cfg);
     taut::Session sb(net.endpoint(b), a, cfg);
@@ -58,14 +60,14 @@ void run_transfer(std::uint64_t seed, double loss, int n) {
     };
 
     feed();
-    for (int iter = 0; iter < 20000 && static_cast<int>(received.size()) < n; ++iter) {
-        net.advance(5ms);
+    for (int iter = 0; iter < max_iters && static_cast<int>(received.size()) < n; ++iter) {
+        net.advance(step);
         sa.poll();
         sb.poll();
         sa.tick();
         sb.tick();
         feed();
-        EXPECT_LE(sa.in_flight(), cfg.window_pkts); // invariant 3
+        EXPECT_LE(sa.in_flight(), static_cast<std::size_t>(window)); // invariant 3
     }
 
     ASSERT_EQ(received.size(), static_cast<std::size_t>(n)); // no loss, no stall (inv. 1, 5)
@@ -77,13 +79,19 @@ void run_transfer(std::uint64_t seed, double loss, int n) {
 } // namespace
 
 TEST(Session, StopAndWaitReliableAt5PercentLoss) {
-    run_transfer(2024, 0.05, 100);
+    run_transfer(2024, taut::Impairments{.loss = 0.05, .delay = 5ms}, 1, 100, 20000, 5ms);
 }
 
 TEST(Session, StopAndWaitReliableAt20PercentLoss) {
-    run_transfer(7, 0.20, 100);
+    run_transfer(7, taut::Impairments{.loss = 0.20, .delay = 5ms}, 1, 100, 20000, 5ms);
 }
 
 TEST(Session, StopAndWaitCleanLink) {
-    run_transfer(1, 0.0, 50);
+    run_transfer(1, taut::Impairments{}, 1, 50, 20000, 5ms);
+}
+
+// Window 64: real pipelining, plus reorder (jitter), duplication, and loss all at once.
+TEST(Session, SlidingWindowReorderDupLoss) {
+    run_transfer(99, taut::Impairments{.loss = 0.05, .dup = 0.02, .delay = 5ms, .jitter = 8ms}, 64,
+                 300, 80000, 2ms);
 }

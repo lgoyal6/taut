@@ -7,14 +7,12 @@
 
 namespace taut {
 namespace {
-// Fixed RTO until Jacobson/Karn estimation lands (next module). Doubled per retransmit,
-// capped — the classic exponential backoff (§5.4).
-constexpr std::chrono::milliseconds kInitialRto{50};
+// Retransmit backoff cap (§5.4). The base RTO now comes from the RttEstimator.
 constexpr std::chrono::milliseconds kMaxRto{2000};
 } // namespace
 
 Session::Session(UdpTransport& transport, Endpoint peer, Config cfg)
-    : tx_(transport), peer_(peer), cfg_(cfg) {}
+    : tx_(transport), peer_(peer), cfg_(cfg), rtt_(cfg.rto_floor, kMaxRto) {}
 
 bool Session::send(Class cls, ByteSpan payload) {
     if (ring_.size() >= cfg_.window_pkts) {
@@ -41,9 +39,11 @@ bool Session::send(Class cls, ByteSpan payload) {
     datagram.resize(n);
     tx_.send(peer_, datagram);
 
-    const TimerId id = timers_.schedule(tx_.now() + kInitialRto);
+    const auto now = tx_.now();
+    const auto rto = rtt_.rto();
+    const TimerId id = timers_.schedule(now + rto);
     timer_to_seq_[id] = seq;
-    ring_.push_back(Slot{seq, id, kInitialRto, 1, std::move(datagram)});
+    ring_.push_back(Slot{seq, id, rto, 1, now, std::move(datagram)});
     return true;
 }
 
@@ -80,10 +80,21 @@ void Session::tick() {
 }
 
 void Session::process_cum_ack(std::uint32_t next_expected_ack) {
+    const auto now = tx_.now();
+    bool sampled = false;
+    std::chrono::milliseconds rtt{};
     while (!ring_.empty() && ring_.front().seq < next_expected_ack) {
-        timers_.cancel(ring_.front().timer);
-        timer_to_seq_.erase(ring_.front().timer);
+        const Slot& s = ring_.front();
+        if (s.transmit_count == 1) { // Karn: sample only never-retransmitted (unambiguous) acks
+            rtt = std::chrono::duration_cast<std::chrono::milliseconds>(now - s.send_time);
+            sampled = true;
+        }
+        timers_.cancel(s.timer);
+        timer_to_seq_.erase(s.timer);
         ring_.pop_front();
+    }
+    if (sampled) {
+        rtt_.sample(rtt);
     }
 }
 
