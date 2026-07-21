@@ -259,6 +259,7 @@ void Swim::send_swim(PacketType type, const Endpoint& to, std::uint32_t probe_id
 void Swim::poll() {
     std::array<std::byte, kMaxDatagram> buf{};
     while (auto r = tx_.recv(buf)) {
+        const Endpoint from = r->from; // r is engaged here (loop guard); capture before gossip loop
         Packet p{};
         if (decode(std::span<const std::byte>(buf.data(), r->size), p) != DecodeError::Ok) {
             continue; // malformed / corrupt — drop
@@ -294,16 +295,16 @@ void Swim::poll() {
 
         switch (p.type) {
         case PacketType::Ping:
-            handle_ping(r->from, probe_id);
+            handle_ping(from, probe_id);
             break;
         case PacketType::PingReq:
-            handle_ping_req(r->from, probe_id, subject);
+            handle_ping_req(from, probe_id, subject);
             break;
         case PacketType::Pong:
-            handle_pong(r->from, probe_id, subject);
+            handle_pong(from, probe_id, subject);
             break;
         case PacketType::Join:
-            handle_join(r->from);
+            handle_join(from);
             break;
         default:
             break;

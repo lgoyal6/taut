@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <ranges>
 #include <span>
 #include <utility>
 
@@ -142,11 +143,11 @@ void Session::process_sack(std::uint32_t cum_ack, std::uint64_t bitmap) {
     // Reno 3-dup-ack idea expressed on the bitmap). ring_ is ascending, so walk it backwards
     // counting SACKed slots seen so far.
     std::uint32_t sacked_above = 0;
-    for (auto it = ring_.rbegin(); it != ring_.rend(); ++it) {
-        if (it->sacked) {
+    for (auto& slot : ring_ | std::views::reverse) {
+        if (slot.sacked) {
             ++sacked_above;
-        } else if (sacked_above >= 3 && !it->fast_retransmitted) {
-            fast_retransmit(*it);
+        } else if (sacked_above >= 3 && !slot.fast_retransmitted) {
+            fast_retransmit(slot);
         }
     }
 }
