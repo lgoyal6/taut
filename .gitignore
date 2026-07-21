@@ -6,3 +6,7 @@ compile_commands.json
 *.so
 .DS_Store
 .cache/
+/wt-core/
+/wt-bench/
+/wt-swim/
+/wt-infra/

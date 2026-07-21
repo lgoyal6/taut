@@ -25,6 +25,7 @@ add_library(taut STATIC
     src/sim_net.cc
     src/rto.cc
     src/session.cc
+    src/swim.cc
 )
 target_include_directories(taut PUBLIC include)
 target_compile_features(taut PUBLIC cxx_std_20)
@@ -47,6 +48,11 @@ endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_subdirectory(demo)
 endif()
+
+# SWIM mesh demo (feat/swim): runs entirely on the in-process SimNet + virtual clock, so it is
+# portable (no epoll) and always built. Relaxed warning set — demos aren't library code.
+add_executable(mesh_node demo/mesh_node.cc)
+target_link_libraries(mesh_node PRIVATE taut taut_test_warnings)
 
 if(TAUT_BUILD_FUZZERS)
     add_subdirectory(fuzz)

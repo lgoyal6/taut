@@ -122,3 +122,36 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
   window-reopening ack can't deadlock.
 - Alternative: rely on data-packet RTO to re-probe (fails when nothing is in flight).
 - Rationale (Laksh): _______________________________________________
+
+---
+
+## Week 4 — SWIM membership (§5.9)
+
+### D21. Gossip wire location: **carried in the packet PAYLOAD** (not the §5.2 header piggyback)
+- Uses `PacketType::{Ping,PingReq,Pong,Join}` + `Class::Unreliable`, codec untouched. Lane
+  constraint for the parallel-worktree split; header-piggyback (flags.bit1) is a later merge.
+  Sender identity comes from the transport `from`, never the payload (mirrors SWIM's recvfrom).
+- Rationale (Laksh): _______________________________________________
+
+### D22. State merge: **incarnation precedence** (Suspect beats Alive at equal inc; Dead terminal)
+- Single `apply_rumor()` entry point for wire gossip, own conclusions, and tests. Only the
+  accused refutes (incarnation+1). Alternative (bare timestamp/last-writer) rejected: it can't
+  distinguish a stale suspicion from a fresh one — the exact failure incarnation numbers fix.
+- Rationale (Laksh): _______________________________________________
+
+### D23. Dissemination: **one rumor per subject, least-transmitted-first, budget ceil(3·ln N)**
+- Overwrite-on-supersede bounds the buffer to N and auto-dedups. Budget=5 at N=5.
+- **Deviation:** unresolved Suspect rumors are re-injected each period (anti-entropy) so a
+  partition-heal reconverges — otherwise the budget is spent broadcasting into the partition and
+  the accused never hears the suspicion to refute. (docs/DESIGN-swim.md.)
+- Rationale (Laksh): _______________________________________________
+
+### D24. Timing/driving: **scalar per-period deadlines**, `poll()`/`tick()` (not the timer heap)
+- SWIM has a handful of coarse deadlines (ping 300 ms, period 1 s, suspicion 3 s); explicit
+  scalars read clearer than reusing the ARQ min-heap. Detection stages/math in DESIGN-swim.md.
+- Rationale (Laksh): _______________________________________________
+
+### D25. Partition modeling: **`LinkFilter` transport decorator** in test/demo (SimNet untouched)
+- Symmetric block on both endpoints == bidirectional partition; keeps the shared SimNet
+  (feat/core) unedited. k=3 indirect probes, T=1 s, suspicion 3 s are the §5.9 reference values.
+- Rationale (Laksh): _______________________________________________
