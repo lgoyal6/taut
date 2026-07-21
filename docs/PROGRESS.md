@@ -5,6 +5,30 @@ Format: newest at top within each week.
 
 ---
 
+## Integration + Week-2 checkpoint (2026-07-20)
+
+Four parallel feature branches merged into `main` (core, bench, swim, infra), integrated
+build verified in Lima: **55/55 unit tests pass**, clang-format clean, all demos build,
+`mesh_node` reconverges after a partition (invariant 6 held).
+
+**WEEK-2 HARD CHECKPOINT (PLAN §9): PASSED — 20/20 GREEN.** `sudo bench/scripts/soak.sh`:
+twenty consecutive 10 MB transfers over veth+netem @ 5% loss (delay 30ms±10ms, reorder 1%,
+dup 0.5%), every one sha256-identical. Loss sweep shows goodput 1049→182 kB/s across 0→20%.
+Week 2 is complete; the abandon protocol is not triggered.
+
+**Benchmarks (§7): INCOMPLETE — do not treat as done.** Honest status:
+- The three binaries build (no API drift) and the thesis signal is already visible: at 5%
+  loss TCP p99 ≈ 511 ms (RTO_min + head-of-line) vs taut ≈ 32 ms at 0%.
+- BUT committed CSVs cover **only loss 0%** — the entire latency-vs-loss sweep (1/5/10/20%)
+  and the taut **class-1** line are missing. `docs/BENCHMARKS.md` embeds two plot images that
+  do not exist yet.
+- Two harness bugs block the full matrix: (1) `latency_bench` fails to re-bind on the 2nd+
+  loss point (no SO_REUSEADDR / lingering server between runs); (2) `enet_baseline`
+  `host_create` fails on repeated runs. Must fix both, run `LOSSES="0 1 5 10 20" RUNS=5`,
+  and generate the plots before the benchmark claims are real (honesty rule).
+
+---
+
 ## Week 2 — reliability core (⇒ HARD CHECKPOINT)
 
 **Operating-model change (2026-07-20):** Laksh chose "full drop" — the §2 comprehension
