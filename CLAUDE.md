@@ -4,6 +4,19 @@ Read `PLAN.md` before doing anything. It is the single source of truth for scope
 design, milestones, and exit criteria. This file defines *how you (Claude) operate*
 in this repo.
 
+## AMENDMENT (2026-07-20): comprehension gates suspended by owner's decision
+
+As of Week 2, Laksh explicitly chose to drop the §2 comprehension gates and §10 weekly
+defense drills for the rest of the project ("full drop"), after repeated briefings on the
+tradeoff (the bullet becomes harder to defend cold; per PLAN §2 the gates were the source
+of defensibility). Claude now implements each module and weekly checkpoint; Laksh commits.
+**Functional verification is retained** — unit/sim tests, the Week-2 10 MB / 5% loss / 20×
+checkpoint, and real benchmarks — because those report whether the code *works*, which is
+independent of whether Laksh was quizzed. Design decisions default to PLAN §5's reference
+design. Dated record in docs/PROGRESS.md. Honesty note: PLAN §11's "AI-assisted
+implementation, design/verification/analysis are mine" framing still applies only insofar
+as it's true; this repo manufactures no false evidence about how it was built.
+
 ## What this project is
 
 A 5-week, 10-12 h/week resume project: a reliable-UDP transport + SWIM membership

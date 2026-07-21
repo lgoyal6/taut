@@ -5,6 +5,24 @@ Format: newest at top within each week.
 
 ---
 
+## Week 2 — reliability core (⇒ HARD CHECKPOINT)
+
+**Operating-model change (2026-07-20):** Laksh chose "full drop" — the §2 comprehension
+gates and §10 weekly drills are suspended for weeks 2–5 (see CLAUDE.md amendment). Claude
+implements + functionally verifies each module; Laksh commits. Design decisions default to
+PLAN §5 reference design. Functional gates retained: unit/sim tests, the 10 MB / 5% loss /
+20× checkpoint, and real benchmarks.
+
+### S1a — timer min-heap  (date: 2026-07-20)
+- `timers.{h,cc}`: hand-built binary min-heap of deadlines; lazy deletion (cancel marks an
+  id dead, pruned when it reaches the root). schedule/cancel/next_deadline/pop_due/empty.
+  `docs/DESIGN-timers.md`.
+- Verified in Lima under ASan: 19/19 unit tests (5 new timer tests) green; clang-format clean.
+
+**Remaining for Week 2:** SimNet (seeded, virtual-clock sim transport) + send-buffer ring +
+stop-and-wait ARQ (5% sim loss); then sliding window (64) + cumulative acks + RTO/Karn +
+SimNet invariant scenarios; then send_file/recv_file + veth/netem soak → the hard checkpoint.
+
 ## Week 1 — foundations (codec + fuzz + event loop skeleton)
 
 ### S3 — transport + epoll loop + echo demo + fuzzer  (date: 2026-07-20)
