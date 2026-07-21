@@ -1,153 +1,249 @@
-run_matrix: losses=[0 1 5 10 20] runs=5 dur=30s rate=300/s rtt=30ms classes=[2] enet=1
-run_matrix: binaries in /Users/lakshgoyal/taut/wt-bench/build/release/bench, CSVs to /Users/lakshgoyal/taut/wt-bench/bench/data
+run_matrix: losses=[0 1 5 10 20] runs=5 dur=10s rate=500/s rtt=30ms classes=[1 2] enet=1
+run_matrix: binaries in /Users/lakshgoyal/taut/build/bench/bench, CSVs to /Users/lakshgoyal/taut/bench/data
 === rr @ loss 0% (RTT 30ms) ===
 tcp rr-server: done
-tcp rr[loss0%]: n=837 p50=35.70 p99=48.79 p999=57.94 max=57.94 ms
+tcp rr[loss0%]: n=276 p50=35.95 p99=51.66 p999=53.45 max=53.45 ms
 enet rr-server: done
-enet rr[loss0%]: n=906 p50=33.12 p99=44.68 p999=52.59 max=52.59 ms
+enet rr[loss0%]: n=303 p50=33.07 p99=47.48 p999=51.83 max=51.83 ms
 taut rr-server: done
-taut rr[cls2 loss0%]: n=994 p50=30.13 p99=31.73 p999=37.58 max=37.58 ms (2.04x wire)
+taut rr[cls1 loss0%]: n=330 p50=30.16 p99=33.50 p999=53.91 max=53.91 ms (2.06x wire)
+taut rr-server: done
+taut rr[cls2 loss0%]: n=332 p50=30.13 p99=31.22 p999=37.33 max=37.33 ms (2.03x wire)
 tcp rr-server: done
-tcp rr[loss0%]: n=815 p50=36.26 p99=47.12 p999=56.64 max=56.64 ms
+tcp rr[loss0%]: n=278 p50=36.09 p99=44.03 p999=51.35 max=51.35 ms
 enet rr-server: done
-enet rr[loss0%]: n=861 p50=34.70 p99=47.80 p999=53.82 max=53.82 ms
+enet rr[loss0%]: n=307 p50=32.42 p99=36.28 p999=50.54 max=50.54 ms
 taut rr-server: done
-taut rr[cls2 loss0%]: n=994 p50=30.14 p99=32.17 p999=36.84 max=36.84 ms (2.04x wire)
+taut rr[cls1 loss0%]: n=332 p50=30.14 p99=31.69 p999=34.02 max=34.02 ms (2.04x wire)
+taut rr-server: done
+taut rr[cls2 loss0%]: n=331 p50=30.15 p99=32.38 p999=37.67 max=37.67 ms (2.06x wire)
 tcp rr-server: done
-tcp rr[loss0%]: n=836 p50=35.78 p99=48.50 p999=54.99 max=54.99 ms
+tcp rr[loss0%]: n=278 p50=35.73 p99=52.78 p999=62.04 max=62.04 ms
 enet rr-server: done
-enet rr[loss0%]: n=905 p50=32.99 p99=47.70 p999=62.21 max=62.21 ms
+enet rr[loss0%]: n=310 p50=31.89 p99=38.27 p999=45.07 max=45.07 ms
 taut rr-server: done
-taut rr[cls2 loss0%]: n=995 p50=30.12 p99=31.67 p999=33.36 max=33.36 ms (2.03x wire)
+taut rr[cls1 loss0%]: n=331 p50=30.15 p99=33.14 p999=40.11 max=40.11 ms (2.08x wire)
+taut rr-server: done
+taut rr[cls2 loss0%]: n=332 p50=30.13 p99=31.66 p999=37.69 max=37.69 ms (2.04x wire)
 tcp rr-server: done
-tcp rr[loss0%]: n=836 p50=35.92 p99=42.91 p999=52.27 max=52.27 ms
+tcp rr[loss0%]: n=280 p50=35.54 p99=49.49 p999=58.96 max=58.96 ms
 enet rr-server: done
-enet rr[loss0%]: n=905 p50=33.26 p99=41.77 p999=52.45 max=52.45 ms
+enet rr[loss0%]: n=302 p50=32.80 p99=46.74 p999=79.92 max=79.92 ms
 taut rr-server: done
-taut rr[cls2 loss0%]: n=991 p50=30.12 p99=33.05 p999=65.11 max=65.11 ms (2.05x wire)
+taut rr[cls1 loss0%]: n=331 p50=30.16 p99=31.78 p999=33.75 max=33.75 ms (2.03x wire)
+taut rr-server: done
+taut rr[cls2 loss0%]: n=331 p50=30.16 p99=31.23 p999=34.38 max=34.38 ms (2.02x wire)
 tcp rr-server: done
-tcp rr[loss0%]: n=841 p50=35.66 p99=43.25 p999=47.20 max=47.20 ms
+tcp rr[loss0%]: n=280 p50=35.74 p99=44.14 p999=53.15 max=53.15 ms
 enet rr-server: done
-enet rr[loss0%]: n=907 p50=33.06 p99=41.80 p999=54.82 max=54.82 ms
+enet rr[loss0%]: n=306 p50=32.69 p99=39.87 p999=45.15 max=45.15 ms
 taut rr-server: done
-taut rr[cls2 loss0%]: n=995 p50=30.11 p99=31.88 p999=33.45 max=33.45 ms (2.04x wire)
+taut rr[cls1 loss0%]: n=325 p50=30.21 p99=50.64 p999=56.27 max=56.27 ms (2.14x wire)
+taut rr-server: done
+taut rr[cls2 loss0%]: n=331 p50=30.16 p99=32.13 p999=34.13 max=34.13 ms (2.03x wire)
 === rr @ loss 1% (RTT 30ms) ===
 tcp rr-server: done
-tcp rr[loss1%]: n=672 p50=40.27 p99=292.57 p999=319.91 max=319.91 ms
+tcp rr[loss1%]: n=257 p50=35.66 p99=278.40 p999=280.23 max=280.23 ms
 enet rr-server: done
-enet rr[loss1%]: n=833 p50=34.81 p99=87.48 p999=146.57 max=146.57 ms
+enet rr[loss1%]: n=303 p50=33.08 p99=40.35 p999=62.46 max=62.46 ms
 taut rr-server: done
-taut rr[cls2 loss1%]: n=969 p50=30.15 p99=61.23 p999=123.34 max=123.34 ms (2.08x wire)
+taut rr[cls1 loss1%]: n=326 p50=30.15 p99=61.25 p999=61.29 max=61.29 ms (2.04x wire)
+taut rr-server: done
+taut rr[cls2 loss1%]: n=324 p50=30.17 p99=61.28 p999=63.22 max=63.22 ms (2.07x wire)
 tcp rr-server: done
-tcp rr[loss1%]: n=648 p50=40.50 p99=290.49 p999=299.10 max=299.10 ms
+tcp rr[loss1%]: n=240 p50=35.39 p99=283.36 p999=295.56 max=295.56 ms
 enet rr-server: done
-enet rr[loss1%]: n=829 p50=34.55 p99=90.34 p999=146.50 max=146.50 ms
+enet rr[loss1%]: n=295 p50=32.71 p99=80.34 p999=139.29 max=139.29 ms
 taut rr-server: done
-taut rr[cls2 loss1%]: n=965 p50=30.15 p99=61.27 p999=123.05 max=123.05 ms (2.07x wire)
+taut rr[cls1 loss1%]: n=321 p50=30.14 p99=61.25 p999=94.14 max=94.14 ms (2.05x wire)
+taut rr-server: done
+taut rr[cls2 loss1%]: n=323 p50=30.13 p99=61.32 p999=92.20 max=92.20 ms (2.07x wire)
 tcp rr-server: done
-tcp rr[loss1%]: n=657 p50=40.48 p99=290.90 p999=323.59 max=323.59 ms
+tcp rr[loss1%]: n=246 p50=35.73 p99=277.51 p999=279.02 max=279.02 ms
 enet rr-server: done
-enet rr[loss1%]: n=825 p50=35.01 p99=86.76 p999=149.34 max=149.34 ms
+enet rr[loss1%]: n=285 p50=33.04 p99=134.49 p999=135.11 max=135.11 ms
 taut rr-server: done
-taut rr[cls2 loss1%]: n=973 p50=30.15 p99=61.17 p999=92.17 max=92.17 ms (2.08x wire)
+taut rr[cls1 loss1%]: n=327 p50=30.12 p99=61.13 p999=61.29 max=61.29 ms (2.05x wire)
+taut rr-server: done
+taut rr[cls2 loss1%]: n=326 p50=30.17 p99=61.05 p999=61.25 max=61.25 ms (2.07x wire)
 tcp rr-server: done
-tcp rr[loss1%]: n=650 p50=40.50 p99=290.45 p999=298.20 max=298.20 ms
+tcp rr[loss1%]: n=230 p50=36.08 p99=279.80 p999=294.39 max=294.39 ms
 enet rr-server: done
-enet rr[loss1%]: n=827 p50=34.32 p99=136.38 p999=146.04 max=146.04 ms
+enet rr[loss1%]: n=295 p50=32.79 p99=79.27 p999=142.34 max=142.34 ms
 taut rr-server: done
-taut rr[cls2 loss1%]: n=972 p50=30.14 p99=61.18 p999=61.37 max=61.37 ms (2.08x wire)
+taut rr[cls1 loss1%]: n=314 p50=30.13 p99=61.34 p999=123.15 max=123.15 ms (2.08x wire)
+taut rr-server: done
+taut rr[cls2 loss1%]: n=322 p50=30.14 p99=61.27 p999=85.26 max=85.26 ms (2.05x wire)
 tcp rr-server: done
-tcp rr[loss1%]: n=650 p50=39.99 p99=291.12 p999=376.71 max=376.71 ms
+tcp rr[loss1%]: n=246 p50=35.71 p99=279.56 p999=280.71 max=280.71 ms
 enet rr-server: done
-enet rr[loss1%]: n=830 p50=34.26 p99=130.98 p999=192.91 max=192.91 ms
+enet rr[loss1%]: n=294 p50=33.11 p99=81.01 p999=136.83 max=136.83 ms
 taut rr-server: done
-taut rr[cls2 loss1%]: n=977 p50=30.14 p99=61.16 p999=61.61 max=61.61 ms (2.07x wire)
+taut rr[cls1 loss1%]: n=325 p50=30.13 p99=61.16 p999=61.21 max=61.21 ms (2.05x wire)
+taut rr-server: done
+taut rr[cls2 loss1%]: n=324 p50=30.13 p99=61.20 p999=61.87 max=61.87 ms (2.03x wire)
 === rr @ loss 5% (RTT 30ms) ===
 tcp rr-server: done
-tcp rr[loss5%]: n=506 p50=40.22 p99=316.51 p999=388.84 max=388.84 ms
+tcp rr[loss5%]: n=182 p50=35.78 p99=311.90 p999=610.41 max=610.41 ms
 enet rr-server: done
-enet rr[loss5%]: n=685 p50=34.69 p99=146.04 p999=341.41 max=341.41 ms
+enet rr[loss5%]: n=241 p50=32.84 p99=167.81 p999=270.98 max=270.98 ms
 taut rr-server: done
-taut rr[cls2 loss5%]: n=891 p50=30.14 p99=64.20 p999=154.44 max=154.44 ms (2.15x wire)
+taut rr[cls1 loss5%]: n=299 p50=30.16 p99=66.19 p999=123.28 max=123.28 ms (2.13x wire)
+taut rr-server: done
+taut rr[cls2 loss5%]: n=292 p50=30.19 p99=92.46 p999=154.40 max=154.40 ms (2.17x wire)
 tcp rr-server: done
-tcp rr[loss5%]: n=426 p50=40.03 p99=432.80 p999=876.28 max=876.28 ms
+tcp rr[loss5%]: n=146 p50=36.13 p99=625.90 p999=679.28 max=679.28 ms
 enet rr-server: done
-enet rr[loss5%]: n=697 p50=34.89 p99=145.96 p999=350.17 max=350.17 ms
+enet rr[loss5%]: n=233 p50=32.86 p99=148.23 p999=186.33 max=186.33 ms
 taut rr-server: done
-taut rr[cls2 loss5%]: n=898 p50=30.15 p99=61.43 p999=222.12 max=222.12 ms (2.13x wire)
+taut rr[cls1 loss5%]: n=297 p50=30.15 p99=74.19 p999=230.28 max=230.28 ms (2.13x wire)
+taut rr-server: done
+taut rr[cls2 loss5%]: n=306 p50=30.15 p99=61.31 p999=120.22 max=120.22 ms (2.13x wire)
 tcp rr-server: done
-tcp rr[loss5%]: n=449 p50=40.26 p99=361.37 p999=544.09 max=544.09 ms
+tcp rr[loss5%]: n=180 p50=35.41 p99=523.00 p999=532.63 max=532.63 ms
 enet rr-server: done
-enet rr[loss5%]: n=725 p50=34.81 p99=146.70 p999=191.46 max=191.46 ms
+enet rr[loss5%]: n=266 p50=32.90 p99=136.46 p999=138.23 max=138.23 ms
 taut rr-server: done
-taut rr[cls2 loss5%]: n=873 p50=30.15 p99=92.30 p999=154.37 max=154.37 ms (2.17x wire)
+taut rr[cls1 loss5%]: n=301 p50=30.12 p99=61.32 p999=123.14 max=123.14 ms (2.15x wire)
+taut rr-server: done
+taut rr[cls2 loss5%]: n=283 p50=30.17 p99=123.16 p999=230.30 max=230.30 ms (2.18x wire)
 tcp rr-server: done
-tcp rr[loss5%]: n=408 p50=40.18 p99=371.76 p999=656.17 max=656.17 ms
+tcp rr[loss5%]: n=160 p50=36.13 p99=360.29 p999=522.02 max=522.02 ms
 enet rr-server: done
-enet rr[loss5%]: n=672 p50=34.96 p99=182.05 p999=1536.06 max=1536.06 ms
+enet rr[loss5%]: n=226 p50=33.19 p99=137.12 p999=1529.65 max=1529.65 ms
 taut rr-server: done
-taut rr[cls2 loss5%]: n=885 p50=30.15 p99=63.17 p999=123.37 max=123.37 ms (2.14x wire)
-tcp rr[loss5%]: n=416 p50=40.05 p99=392.68 p999=838.60 max=838.60 ms
+taut rr[cls1 loss5%]: n=286 p50=30.19 p99=123.25 p999=149.61 max=149.61 ms (2.14x wire)
+taut rr-server: done
+taut rr[cls2 loss5%]: n=286 p50=30.18 p99=95.22 p999=230.26 max=230.26 ms (2.15x wire)
 tcp rr-server: done
+tcp rr[loss5%]: n=153 p50=35.60 p99=339.99 p999=348.16 max=348.16 ms
 enet rr-server: done
-enet rr[loss5%]: n=684 p50=34.96 p99=174.96 p999=1533.19 max=1533.19 ms
+enet rr[loss5%]: n=251 p50=32.86 p99=136.89 p999=139.35 max=139.35 ms
 taut rr-server: done
-taut rr[cls2 loss5%]: n=882 p50=30.15 p99=92.34 p999=123.33 max=123.33 ms (2.17x wire)
+taut rr[cls1 loss5%]: n=293 p50=30.19 p99=66.36 p999=95.11 max=95.11 ms (2.15x wire)
+taut rr-server: done
+taut rr[cls2 loss5%]: n=288 p50=30.19 p99=72.24 p999=123.11 max=123.11 ms (2.23x wire)
 === rr @ loss 10% (RTT 30ms) ===
 tcp rr-server: done
-tcp rr[loss10%]: n=284 p50=40.44 p99=671.35 p999=800.83 max=800.83 ms
+tcp rr[loss10%]: n=130 p50=35.94 p99=542.12 p999=760.68 max=760.68 ms
 enet rr-server: done
-enet rr[loss10%]: n=558 p50=35.32 p99=248.75 p999=440.01 max=440.01 ms
+enet rr[loss10%]: n=165 p50=33.60 p99=235.35 p999=748.65 max=748.65 ms
 taut rr-server: done
-taut rr[cls2 loss10%]: n=808 p50=30.15 p99=123.21 p999=247.44 max=247.44 ms (2.23x wire)
+taut rr[cls1 loss10%]: n=263 p50=30.19 p99=123.44 p999=123.51 max=123.51 ms (2.23x wire)
+taut rr-server: done
+taut rr[cls2 loss10%]: n=257 p50=30.18 p99=123.29 p999=247.39 max=247.39 ms (2.25x wire)
 tcp rr-server: done
-tcp rr[loss10%]: n=272 p50=41.09 p99=832.20 p999=1428.44 max=1428.44 ms
+tcp rr[loss10%]: n=101 p50=36.14 p99=554.48 p999=616.48 max=616.48 ms
 enet rr-server: done
-enet rr[loss10%]: n=507 p50=35.91 p99=247.11 p999=988.45 max=988.45 ms
+enet rr[loss10%]: n=195 p50=32.92 p99=239.07 p999=479.99 max=479.99 ms
 taut rr-server: done
-taut rr[cls2 loss10%]: n=829 p50=30.16 p99=104.30 p999=126.12 max=126.12 ms (2.22x wire)
+taut rr[cls1 loss10%]: n=255 p50=30.16 p99=154.30 p999=230.39 max=230.39 ms (2.20x wire)
+taut rr-server: done
+taut rr[cls2 loss10%]: n=275 p50=30.16 p99=123.14 p999=123.42 max=123.42 ms (2.22x wire)
 tcp rr-server: done
-tcp rr[loss10%]: n=297 p50=41.18 p99=522.22 p999=625.94 max=625.94 ms
+tcp rr[loss10%]: n=96 p50=36.12 p99=812.05 p999=812.05 max=812.05 ms
 enet rr-server: done
-enet rr[loss10%]: n=477 p50=35.34 p99=248.91 p999=3541.65 max=3541.65 ms
+enet rr[loss10%]: n=168 p50=33.53 p99=756.13 p999=1364.91 max=1364.91 ms
 taut rr-server: done
-taut rr[cls2 loss10%]: n=772 p50=30.16 p99=123.39 p999=278.48 max=278.48 ms (2.27x wire)
+taut rr[cls1 loss10%]: n=227 p50=30.22 p99=230.16 p999=255.24 max=255.24 ms (2.37x wire)
+taut rr-server: done
+taut rr[cls2 loss10%]: n=258 p50=30.20 p99=123.59 p999=247.75 max=247.75 ms (2.25x wire)
 tcp rr-server: done
-tcp rr[loss10%]: n=320 p50=41.23 p99=554.97 p999=766.86 max=766.86 ms
+tcp rr[loss10%]: n=102 p50=36.64 p99=534.28 p999=559.19 max=559.19 ms
 enet rr-server: done
-enet rr[loss10%]: n=576 p50=35.23 p99=244.48 p999=401.76 max=401.76 ms
+enet rr[loss10%]: n=158 p50=33.86 p99=343.65 p999=2821.68 max=2821.68 ms
 taut rr-server: done
-taut rr[cls2 loss10%]: n=819 p50=30.15 p99=123.26 p999=247.19 max=247.19 ms (2.24x wire)
+taut rr[cls1 loss10%]: n=260 p50=30.20 p99=154.54 p999=247.19 max=247.19 ms (2.26x wire)
+taut rr-server: done
+taut rr[cls2 loss10%]: n=255 p50=30.18 p99=123.34 p999=247.69 max=247.69 ms (2.24x wire)
 tcp rr-server: done
-tcp rr[loss10%]: n=201 p50=41.03 p99=829.40 p999=9652.18 max=9652.18 ms
+tcp rr[loss10%]: n=78 p50=37.14 p99=1157.10 p999=1157.10 max=1157.10 ms
 enet rr-server: done
-enet rr[loss10%]: n=536 p50=35.71 p99=321.14 p999=968.57 max=968.57 ms
+enet rr[loss10%]: n=127 p50=33.26 p99=1113.48 p999=1573.66 max=1573.66 ms
 taut rr-server: done
-taut rr[cls2 loss10%]: n=783 p50=30.17 p99=123.37 p999=247.08 max=247.08 ms (2.24x wire)
+taut rr[cls1 loss10%]: n=280 p50=30.14 p99=97.09 p999=154.27 max=154.27 ms (2.20x wire)
+taut rr-server: done
+taut rr[cls2 loss10%]: n=249 p50=30.20 p99=141.19 p999=154.31 max=154.31 ms (2.27x wire)
 === rr @ loss 20% (RTT 30ms) ===
 tcp rr-server: done
-tcp rr[loss20%]: n=140 p50=42.83 p99=982.13 p999=1596.81 max=1596.81 ms
+tcp rr[loss20%]: n=55 p50=36.81 p99=2810.45 p999=2810.45 max=2810.45 ms
 enet rr-server: done
-enet rr[loss20%]: n=234 p50=37.91 p99=990.86 p999=2379.01 max=2379.01 ms
+enet rr[loss20%]: n=53 p50=34.18 p99=2875.83 p999=2875.83 max=2875.83 ms
 taut rr-server: done
-taut rr[cls2 loss20%]: n=580 p50=30.19 p99=247.33 p999=991.50 max=991.50 ms (2.46x wire)
+taut rr[cls1 loss20%]: n=160 p50=30.29 p99=585.36 p999=991.30 max=991.30 ms (2.50x wire)
+taut rr-server: done
+taut rr[cls2 loss20%]: n=187 p50=30.19 p99=247.35 p999=495.41 max=495.41 ms (2.44x wire)
 tcp rr-server: done
-tcp rr[loss20%]: n=159 p50=40.56 p99=1647.63 p999=2345.86 max=2345.86 ms
+tcp rr[loss20%]: n=53 p50=37.74 p99=759.16 p999=759.16 max=759.16 ms
 enet rr-server: done
-enet rr[loss20%]: n=372 p50=33.99 p99=662.13 p999=2089.05 max=2089.05 ms
+enet rr[loss20%]: n=130 p50=33.50 p99=636.10 p999=1138.97 max=1138.97 ms
 taut rr-server: done
-taut rr[cls2 loss20%]: n=586 p50=30.19 p99=247.31 p999=495.26 max=495.26 ms (2.49x wire)
+taut rr[cls1 loss20%]: n=194 p50=30.19 p99=495.47 p999=510.17 max=510.17 ms (2.41x wire)
+taut rr-server: done
+taut rr[cls2 loss20%]: n=191 p50=30.19 p99=252.47 p999=498.53 max=498.53 ms (2.43x wire)
 tcp rr-server: done
-tcp rr[loss20%]: n=109 p50=37.80 p99=1469.63 p999=1988.60 max=1988.60 ms
+tcp rr[loss20%]: n=50 p50=37.28 p99=2145.47 p999=2145.47 max=2145.47 ms
 enet rr-server: done
-enet rr[loss20%]: n=297 p50=34.09 p99=1479.08 p999=2828.69 max=2828.69 ms
+enet rr[loss20%]: n=133 p50=33.78 p99=342.30 p999=1165.83 max=1165.83 ms
 taut rr-server: done
-taut rr[cls2 loss20%]: n=508 p50=30.20 p99=247.36 p999=2020.47 max=2020.47 ms (2.50x wire)
+taut rr[cls1 loss20%]: n=133 p50=30.17 p99=991.18 p999=1035.20 max=1035.20 ms (2.53x wire)
+taut rr-server: done
+taut rr[cls2 loss20%]: n=157 p50=30.16 p99=630.35 p999=645.69 max=645.69 ms (2.51x wire)
 tcp rr-server: done
-tcp rr[loss20%]: n=142 p50=37.34 p99=1524.83 p999=1638.11 max=1638.11 ms
+tcp rr[loss20%]: n=37 p50=37.68 p99=1902.18 p999=1902.18 max=1902.18 ms
 enet rr-server: done
-enet rr[loss20%]: n=360 p50=34.12 p99=684.96 p999=964.04 max=964.04 ms
+enet rr[loss20%]: n=77 p50=34.17 p99=2791.13 p999=2791.13 max=2791.13 ms
 taut rr-server: done
-taut rr[cls2 loss20%]: n=612 p50=30.17 p99=247.10 p999=495.58 max=495.58 ms (2.47x wire)
-tcp rr[loss20%]: n=2 p50=33.43 p99=35.13 p999=35.13 max=35.13 ms
+taut rr[cls1 loss20%]: n=222 p50=30.14 p99=154.25 p999=247.20 max=247.20 ms (2.41x wire)
+taut rr-server: done
+taut rr[cls2 loss20%]: n=167 p50=30.14 p99=495.15 p999=2014.13 max=2014.13 ms (2.45x wire)
 tcp rr-server: done
+tcp rr[loss20%]: n=51 p50=37.98 p99=1817.36 p999=1817.36 max=1817.36 ms
+enet rr-server: done
+enet rr[loss20%]: n=106 p50=33.25 p99=997.07 p999=1631.63 max=1631.63 ms
+taut rr-server: done
+taut rr[cls1 loss20%]: n=191 p50=30.16 p99=276.16 p999=1022.47 max=1022.47 ms (2.43x wire)
+taut rr-server: done
+taut rr[cls2 loss20%]: n=181 p50=30.19 p99=250.75 p999=300.10 max=300.10 ms (2.52x wire)
+=== throughput @ 0% loss (RTT 30ms) ===
+tcp recv[thru]: 596306 msgs, 241.89 Mbit/s over 10.10s
+tcp send[loss0%]: sent=596306
+enet recv[thru]: 41216 msgs, 15.69 Mbit/s over 10.76s
+enet send[loss0%]: sent=2653628
+taut recv[thru]: 21312 msgs, 8.71 Mbit/s over 10.02s
+taut send[cls1 loss0%]: sent=21312 tx_datagrams=21769 (1.02x)
+taut recv[thru]: 21312 msgs, 8.71 Mbit/s over 10.02s
+taut send[cls2 loss0%]: sent=21312 tx_datagrams=21781 (1.02x)
+tcp recv[thru]: 558038 msgs, 227.22 Mbit/s over 10.06s
+tcp send[loss0%]: sent=558038
+enet recv[thru]: 41490 msgs, 15.83 Mbit/s over 10.74s
+enet send[loss0%]: sent=4701820
+taut recv[thru]: 21248 msgs, 8.69 Mbit/s over 10.01s
+taut send[cls1 loss0%]: sent=21248 tx_datagrams=22013 (1.04x)
+taut recv[thru]: 21312 msgs, 8.70 Mbit/s over 10.03s
+taut send[cls2 loss0%]: sent=21312 tx_datagrams=21697 (1.02x)
+tcp recv[thru]: 578832 msgs, 235.05 Mbit/s over 10.09s
+tcp send[loss0%]: sent=578832
+bench/scripts/run_matrix.sh: line 76: 20628 Killed                  ip netns exec "${NS_A}" "${bin}" ${common} ${sender_args}
+enet recv[thru]: 18432 msgs, 16.03 Mbit/s over 4.71s
+taut recv[thru]: 21312 msgs, 8.71 Mbit/s over 10.02s
+taut send[cls1 loss0%]: sent=21312 tx_datagrams=21697 (1.02x)
+taut recv[thru]: 21248 msgs, 8.69 Mbit/s over 10.02s
+taut send[cls2 loss0%]: sent=21248 tx_datagrams=21799 (1.03x)
+tcp recv[thru]: 581752 msgs, 236.46 Mbit/s over 10.08s
+tcp send[loss0%]: sent=581752
+bench/scripts/run_matrix.sh: line 76: 20665 Killed                  ip netns exec "${NS_A}" "${bin}" ${common} ${sender_args}
+enet recv[thru]: 13568 msgs, 16.18 Mbit/s over 3.43s
+taut recv[thru]: 21248 msgs, 8.69 Mbit/s over 10.01s
+taut send[cls1 loss0%]: sent=21248 tx_datagrams=21965 (1.03x)
+taut recv[thru]: 21248 msgs, 8.69 Mbit/s over 10.01s
+taut send[cls2 loss0%]: sent=21248 tx_datagrams=21895 (1.03x)
+tcp recv[thru]: 537070 msgs, 217.86 Mbit/s over 10.10s
+tcp send[loss0%]: sent=537070
+bench/scripts/run_matrix.sh: line 76: 20699 Killed                  ip netns exec "${NS_A}" "${bin}" ${common} ${sender_args}
+enet recv[thru]: 12416 msgs, 16.33 Mbit/s over 3.12s
+taut recv[thru]: 21312 msgs, 8.71 Mbit/s over 10.03s
+taut send[cls1 loss0%]: sent=21312 tx_datagrams=21537 (1.01x)
+taut recv[thru]: 21248 msgs, 8.70 Mbit/s over 10.01s
+taut send[cls2 loss0%]: sent=21248 tx_datagrams=21551 (1.01x)
+run_matrix: done. CSVs in /Users/lakshgoyal/taut/bench/data

@@ -43,6 +43,11 @@ bool RealUdpTransport::bind(std::string_view addr, std::uint16_t port) {
     if (flags < 0 || ::fcntl(fd_, F_SETFL, flags | O_NONBLOCK) < 0) {
         return false;
     }
+    // Allow rebinding a port a prior process just released (avoids EADDRINUSE on rapid
+    // restart — e.g. the benchmark matrix rebinding the same port per loss point). Runs are
+    // sequential, so this never lets two live sockets share the port.
+    const int reuse = 1;
+    ::setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
     const auto ep = make_endpoint(addr, port);
     if (!ep) {
         return false;

@@ -1,1 +1,5 @@
 transport,cls,goodput_mbps_median,min,max,runs
+taut,1,8.71,8.69,8.71,5
+taut,2,8.70,8.69,8.71,5
+tcp,,235.05,217.86,241.89,5
+enet,,16.03,15.69,16.33,5

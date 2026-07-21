@@ -125,21 +125,25 @@ sudo bench/scripts/soak.sh                   # uses build/release/demo by defaul
 
 ## Benchmarks
 
-> _Graphs forthcoming — the benchmark harness and its report live in
-> [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (see PLAN §7)._
+Request–reply p99 latency vs loss (RTT 30 ms, 512 B messages, median of 5 runs). TCP's
+tail explodes past its ~200 ms `RTO_min` under loss while taut recovers on its 25 ms floor:
 
-The headline experiment plots p99/p999 message latency vs. loss rate for three lines —
-kernel TCP (`TCP_NODELAY`), taut class 2, taut class 1 — alongside the prices paid:
-bandwidth-overhead ratio and clean-link throughput, where TCP and ENet are expected to
-win. Real baselines, fixed seeds, raw CSVs committed.
+![p99 request-reply latency vs loss](bench/data/latency_vs_loss.png)
 
-<!-- feat/bench: drop the latency-vs-loss and overhead plots here -->
-<!-- ![p99 latency vs loss](docs/img/p99_vs_loss.png) -->
-<!-- ![bandwidth overhead vs TCP](docs/img/overhead.png) -->
+| loss % | taut c1 | taut c2 | kernel TCP | ENet |
+|---|---|---|---|---|
+| 5  | 66 ms  | 92 ms  | 360 ms  | 137 ms |
+| 20 | 495 ms | 252 ms | 1902 ms | 997 ms |
 
-The `netem` soak already shows the mechanism the benchmark will quantify: with
-cumulative-ack + RTO-only recovery (pre-SACK), goodput falls off superlinearly as loss
-rises — which is precisely what SACK + fast retransmit (Week 3) exist to fix.
+The price, same fixture: at 0 % loss kernel TCP saturates at ~235 Mbit/s vs taut's ~8.7 —
+TCP wins bulk throughput by ~27× (taut sends one datagram at a time, no batching):
+
+![clean-link throughput](bench/data/throughput_cleanlink.png)
+
+Real baselines (`TCP_NODELAY`, ENet), fixed seeds, raw CSVs committed; full method, tables,
+and the "why we lose where we lose" analysis are in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+(In this one-outstanding RR workload class 1 ≈ class 2; class 1's head-of-line-blocking win
+needs a pipelined load. Bandwidth-overhead-vs-loss plot pending an open-loop run.)
 
 ## Limitations (deliberate — see PLAN §1 non-goals)
 

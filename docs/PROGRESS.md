@@ -16,16 +16,21 @@ twenty consecutive 10 MB transfers over veth+netem @ 5% loss (delay 30ms±10ms, 
 dup 0.5%), every one sha256-identical. Loss sweep shows goodput 1049→182 kB/s across 0→20%.
 Week 2 is complete; the abandon protocol is not triggered.
 
-**Benchmarks (§7): INCOMPLETE — do not treat as done.** Honest status:
-- The three binaries build (no API drift) and the thesis signal is already visible: at 5%
-  loss TCP p99 ≈ 511 ms (RTO_min + head-of-line) vs taut ≈ 32 ms at 0%.
-- BUT committed CSVs cover **only loss 0%** — the entire latency-vs-loss sweep (1/5/10/20%)
-  and the taut **class-1** line are missing. `docs/BENCHMARKS.md` embeds two plot images that
-  do not exist yet.
-- Two harness bugs block the full matrix: (1) `latency_bench` fails to re-bind on the 2nd+
-  loss point (no SO_REUSEADDR / lingering server between runs); (2) `enet_baseline`
-  `host_create` fails on repeated runs. Must fix both, run `LOSSES="0 1 5 10 20" RUNS=5`,
-  and generate the plots before the benchmark claims are real (honesty rule).
+**Benchmarks (§7): real data now committed.** Fixed the two harness bugs (`SO_REUSEADDR` on
+`RealUdpTransport::bind` → taut rebinds per loss point; ENet works on a fresh topology), then
+ran the full clean matrix `LOSSES="0 1 5 10 20" RUNS=5 DURATION=10` (RTT 30 ms, 512 B, seeds
+1–5, veth+netns, offloads off).
+- **Headline (p99 RR latency, median):** at 5% loss taut c1 66 / c2 92 vs TCP 360 / ENet 137 ms;
+  at 20% loss taut c2 252 / c1 495 vs TCP 1902 / ENet 997 ms — taut's tail is ~4–7× below TCP's.
+- **Clean-link throughput:** TCP 235 Mbit/s vs taut 8.7 (ENet 16) — TCP wins bulk ~27× (the
+  disclosed price). Plots: `latency_vs_loss.png`, `throughput_cleanlink.png` generated.
+- **Honesty caveats (recorded in BENCHMARKS.md/README):** (1) in one-outstanding RR, class 1 ≈
+  class 2 — c1's head-of-line-blocking win needs a *pipelined* load, not this closed-loop test;
+  (2) `overhead_vs_loss.png` / bandwidth-overhead ratio is **pending** an open-loop run
+  (`RUN_OPENLOOP=1`); (3) DURATION=10 is below PLAN §7's 60 s — tail ranking robust, p999 at
+  high loss from a few hundred samples.
+- **Snag hit + fixed:** the first background run orphaned and a relaunch ran concurrently,
+  contaminating CSVs; killed all, cleaned netns, re-ran a single clean instance (this data).
 
 ---
 

@@ -20,15 +20,37 @@ explode past their RTO floors under loss:
 
 ![request-reply latency vs loss](../bench/data/latency_vs_loss.png)
 
-<!-- TABLE:RR (median across 5 runs; regenerate with bench/scripts/plot.py) -->
+**p99 round-trip latency (ms), median of 5 runs** — straight from `bench/data/summary_rr.csv`:
 
-The two prices taut pays for that tail, on the same page:
+| loss % | taut class 1 | taut class 2 | kernel TCP | ENet |
+|---|---|---|---|---|
+| 0  | 33  | 32  | 49   | 40  |
+| 1  | 61  | 61  | 280  | 80  |
+| 5  | 66  | 92  | 360  | 137 |
+| 10 | 154 | 123 | 554  | 344 |
+| 20 | 495 | 252 | 1902 | 997 |
 
-![bandwidth overhead vs loss](../bench/data/overhead_vs_loss.png)
+At 5 % loss taut's p99 is ~5× below TCP's; at 20 % loss ~4–7× below — TCP's tail explodes past
+its ~200 ms `RTO_min` while taut recovers on the 25 ms floor. Note that in this
+**one-message-outstanding** RR workload, class 1 and class 2 are statistically similar (either
+can win at a given loss point); class 1's head-of-line-blocking advantage only appears under a
+*pipelined* load with several messages in flight, which this closed-loop test does not exercise.
+
+The price taut pays:
+
 ![clean-link throughput](../bench/data/throughput_cleanlink.png)
 
-(If the PNGs are absent, matplotlib wasn't installed when the CSVs were generated; the numbers
-below come straight from `bench/data/summary_*.csv`, which are the source of truth.)
+At 0 % loss, saturating one flow, kernel TCP does **~235 Mbit/s** vs taut's **~8.7** (ENet ~16)
+— TCP wins bulk throughput by ~27×, the disclosed cost of one datagram at a time with no
+`sendmmsg`/`recvmmsg` batching (PLAN §5.7). The **bandwidth-overhead-vs-loss** plot
+(`overhead_vs_loss.png`, §7.2) requires an open-loop sustained-load run (`RUN_OPENLOOP=1`); it
+was not part of this closed-loop RR matrix and is **pending that run** — do not cite an
+overhead ratio until it exists.
+
+**Data provenance:** `LOSSES="0 1 5 10 20" RUNS=5 DURATION=10` at RTT 30 ms, 512 B messages,
+seeds 1–5, over veth+netns with offloads off. DURATION is below PLAN §7's 60 s target: the tail
+*ranking* is robust, but p999 at the highest loss points is from a few hundred samples. The raw
+CSVs in `bench/data/` are the source of truth.
 
 ---
 
