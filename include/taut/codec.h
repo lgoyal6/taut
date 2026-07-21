@@ -13,6 +13,7 @@ inline constexpr std::uint8_t kMagic0 = 0x7A;
 inline constexpr std::uint8_t kMagic1 = 0x75;
 inline constexpr std::uint8_t kVersion = 1;
 inline constexpr std::size_t kBaseHeaderSize = 21;
+inline constexpr std::size_t kSackSize = 8; // 64-bit SACK bitmap, present iff Flag::SackPresent
 inline constexpr std::size_t kMaxDatagram = 1200;
 
 enum class PacketType : std::uint8_t {
@@ -25,9 +26,9 @@ enum class PacketType : std::uint8_t {
     ProbeWindow = 7,
 };
 
-// Header flag bits (§5.2). SACK and membership sections are not yet parsed by this codec
-// (they arrive with the window/SWIM modules); until then a decoder rejects any non-zero
-// flags as Unsupported rather than misparsing.
+// Header flag bits (§5.2). SACK (bit0) is parsed by this codec; membership (bit1) and
+// keyed-CRC (bit2) are not yet handled — a decoder rejects those bits as Unsupported and
+// encode refuses to emit them.
 enum class Flag : std::uint8_t {
     SackPresent = 0x01,
     MembershipPiggyback = 0x02,
@@ -56,12 +57,17 @@ struct Packet {
     std::uint32_t seq;
     std::uint32_t cum_ack;
     std::uint16_t adv_window;
+    // SACK bitmap (§5.2 / DESIGN-codec.md #2). Meaningful iff `flags & Flag::SackPresent`.
+    // Bit i (LSB-first) set = the reliable seq (cum_ack + 1 + i) was received out of order,
+    // i in [0,63]. Little-endian on the wire at offset 21; byte 0 holds bits 0..7.
+    std::uint64_t sack;
     ByteSpan payload;
 };
 
 // Serialize `pkt` into `out`. Returns bytes written, or 0 on failure (buffer too small,
-// payload > 65535 or datagram > 1200, or unsupported flags set). The CRC is computed
-// and written.
+// payload > 65535 or datagram > 1200, or an unsupported flag bit set — only SackPresent is
+// emittable). When Flag::SackPresent is set, the 8-byte bitmap is written at offset 21.
+// The CRC is computed and written.
 std::size_t encode(const Packet& pkt, std::span<std::byte> out);
 
 // Parse `in`. On DecodeError::Ok, `out` is populated and out.payload views into `in`.

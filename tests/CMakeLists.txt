@@ -21,6 +21,11 @@ add_executable(taut_unit
     unit/sim_net_test.cc
     unit/rto_test.cc
     unit/session_test.cc
+    # --- feat/core: SACK + reliability classes + flow control ---
+    unit/sack_test.cc
+    unit/rx_test.cc
+    unit/flow_test.cc
+    # --- end feat/core ---
 )
 # The event-loop integration test needs epoll → Linux only.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

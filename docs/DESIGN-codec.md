@@ -93,29 +93,44 @@ DATA packet's exact bytes incl. CRC32C, (b) the decoded struct for a known byte 
 his. (Committed as `kGolden` in `tests/unit/codec_test.cc`; Laksh's hand-laid packet is
 `7a 75 11 00 02 01 00 00 00 00 00 00 00 40 00 02 00 cb 4e 6f c3 68 69`, CRC `0xC36F4ECB`.)
 
-## Codec implementation (Week 1 S2)
+## Codec implementation (Week 1 S2 base; SACK added feat/core)
 
-Scope of the first codec: **base header (offsets 0–20) + payload + CRC**. The optional
-SACK bitmap and membership sections are *not* parsed yet — they arrive with the window
-(week 3) and SWIM (week 4) modules. Until then the decoder rejects any non-zero `flags`
-as `Unsupported` rather than misparsing (and `encode` refuses non-zero flags). This keeps
-the module small and gate-able; each optional section lands as its own increment with its
-own golden vector.
+The first codec parsed the **base header (offsets 0–20) + payload + CRC** only. The **SACK
+bitmap (flags bit0)** is now parsed and emitted; the membership (bit1) and keyed-CRC (bit2)
+sections are still unhandled — the decoder rejects those bits as `Unsupported` and `encode`
+refuses to emit them. Each optional section lands as its own increment with its own golden
+vector.
 
-**`DecodeError` taxonomy** (categorizable rejects, for fuzzing): `TooShort` (< 21 B),
-`BadMagic`, `BadVersion`, `LengthOverrun` (payload_len disagrees with datagram size, or
-size > 1200), `BadCrc`, `Unsupported` (non-zero flags or class > 2).
+### SACK section (offset 21, 8 B)
 
-**Decode check order** — `TooShort → BadMagic → BadVersion → length → CRC → flags → class`.
-CRC is verified *before* trusting `flags`/`class`, so a corrupted flag/class byte is caught
-as `BadCrc` (integrity gate) rather than misinterpreted. Length is checked before CRC
-because computing the CRC needs a bounded, exact-size buffer. A datagram must be exactly
-one packet — trailing bytes are `LengthOverrun`.
+When `flags & SackPresent`, an 8-byte little-endian bitmap sits at offset 21, between the base
+header and the payload (header 29 B; max plain payload drops to 1171 B). `Packet` exposes it as
+`std::uint64_t sack`; **bit i (LSB-first) marks reliable seq `cum_ack + 1 + i` received**
+(i ∈ [0,63]), byte 0 holding bits 0–7. The interpretation of the bit indices relative to
+`cum_ack` is a session-layer contract (see docs/DESIGN-window.md), not the codec's — the codec
+only places/extracts the 8 bytes. Golden vector `kGoldenSack`: the base golden DATA packet plus
+`flags=SackPresent`, bitmap `0x05` (seqs 1,3), 31 B, CRC `0x5A4D396A`.
 
-**CRC computation.** Encode writes the crc field as zero, fills the payload, then takes a
+**`DecodeError` taxonomy** (categorizable rejects, for fuzzing): `TooShort` (< 21 B, or a
+SACK-flagged datagram shorter than the 29 B header), `BadMagic`, `BadVersion`, `LengthOverrun`
+(payload_len disagrees with datagram size, or size > 1200), `BadCrc`, `Unsupported`
+(unhandled flag bit, or class > 2).
+
+**Decode check order** — `TooShort → BadMagic → BadVersion → size(flags-derived) → length →
+CRC → flags → class`. One refinement for SACK: the `SackPresent` bit (offset 3, always inside
+the already-length-checked 21 B) is read *before* CRC purely to size the packet
+(`header_len = 21 + 8·present`). A corrupted bit0 therefore makes `header_len`/`total` wrong and
+the datagram is rejected as `LengthOverrun`, or — if the sizes still happen to line up — as
+`BadCrc`; it is never misparsed. Everything else (the remaining flag bits, class) is still
+trusted only *after* the CRC passes, so a corrupted flag/class byte is caught as `BadCrc`.
+Length is checked before CRC because computing the CRC needs a bounded, exact-size buffer; a
+datagram must be exactly one packet — trailing bytes are `LengthOverrun`.
+
+**CRC computation.** Encode writes the crc field as zero, fills the SACK+payload, then takes a
 one-shot CRC over the whole datagram (the field is already zero) and writes it back. Decode
 can't zero the input, so it uses the incremental API in three chunks — `[0,17)` + four zero
-bytes + `[21, total)` — equivalent, no buffer copy (D11).
+bytes + `[21, total)` — equivalent, no buffer copy (D11). The `[21, total)` chunk spans the
+SACK section and payload alike, so no CRC-code change was needed to cover SACK.
 
 **Deviation note:** `Config::mtu_payload` (1200) names the datagram budget; the codec caps
 `total = 21 + payload_len ≤ 1200`, so the real max payload is 1179 B (base header only).

@@ -61,6 +61,37 @@ merge trivially. Merge **feat/core first** (others build on the finished protoco
 - **feat/infra** — send_file/recv_file, veth/netem soak + the 20× checkpoint runner, README,
   CI jobs (clang-tidy, fuzz smoke, sim suite).
 
+<!-- BEGIN feat/core -->
+### feat/core — SACK + fast-retransmit, reliability classes, flow control  (date: 2026-07-20)
+
+Owns codec.{h,cc}, session.{h,cc}, and new tests under tests/unit/. Design defaults to PLAN
+§5 (gates suspended per the amendment; functional verification retained).
+
+**Shipped:**
+- **SACK (flags bit0):** codec now encodes/decodes the 8-byte LE bitmap at offset 21
+  (bit i = reliable seq cum_ack+1+i received). `Packet.sack`; SackPresent read pre-CRC only to
+  size the datagram (documented in DESIGN-codec.md). Golden `kGoldenSack` (31 B, CRC
+  0x5A4D396A) + round-trip / truncation / bit-flip / membership-unsupported tests.
+- **Fast retransmit (§5.4):** `process_sack` marks SACKed slots (cancels their RTO, samples RTT
+  early) and fast-retransmits any un-SACKed slot with ≥ 3 SACKed slots above it (Reno on the
+  bitmap). `set_sack_enabled` toggles it for A/B.
+- **Reliability classes on rx (§5.3):** class 0 = separate 64-seq anti-replay dedup window,
+  deliver-immediately, never acked/retransmitted; class 1 = deliver-on-arrival with a
+  payload-less reasm marker; class 2 = in-order reassembly (as before). DESIGN-window.md.
+- **Flow control (§5.6):** `adv_window` = free app-delivery-queue slots; sender bounds in-flight
+  by min(window_pkts, adv_window) via a bounded `pending_` queue + `pump()`. Zero-window
+  PROBE_WINDOW persist timer (100 ms, ×2, cap 1 s) + window-update ack on drain. `set_receiving`
+  models app backpressure. New docs/DESIGN-flow.md (incl. the invariant-3 class-1 nuance).
+
+**Verified in Lima under ASan/UBSan:** 48/48 unit tests (14 new: 6 SACK codec, 3 SACK/fast-rtx,
+4 classes, 3 flow) — incl. SimNet stalled-receiver (5 s, no deadlock, no overflow, invariants
+1/2/3/5), probe-loss-no-deadlock, class-1 exactly-once under reorder+dup+loss, class-0 dedup
+with zero retransmits, and class-0 loss not stalling reliable. SACK A/B on a 5 %-loss sim:
+retransmits 271→16 (~17×), iterations 576→315. `fuzz_decode` 2.68M execs / 46 s ASan-clean.
+clang-format clean. Deterministic `tests/unit/test_link.h` added for scripted drop scenarios.
+<!-- END feat/core -->
+
+
 ## Week 1 — foundations (codec + fuzz + event loop skeleton)
 
 ### S3 — transport + epoll loop + echo demo + fuzzer  (date: 2026-07-20)
