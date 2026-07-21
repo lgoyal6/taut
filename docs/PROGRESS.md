@@ -48,6 +48,36 @@ PLAN §5 reference design. Functional gates retained: unit/sim tests, the 10 MB 
 
 ---
 
+## Week 4 — SWIM membership (feat/swim worktree)
+
+### S1–S2 — SWIM state machine + mesh_node demo  (date: 2026-07-20)
+- `swim.{h,cc}`: per-node membership + failure detector over `UdpTransport`. Protocol period
+  T=1s; randomized round-robin target; direct PING (300ms) → PING_REQ k=3 → SUSPECT at period
+  end → DEAD after 3s. Incarnation-number precedence (Suspect beats Alive at equal inc; only the
+  accused refutes with inc+1; Dead terminal). Gossip piggybacked in the packet **payload** (no
+  codec/flags edits — lane rule), one rumor/subject, least-transmitted-first, budget ceil(3·lnN)
+  (=5 at N=5); unresolved suspicions re-injected each period so partition-heal reconverges.
+  Indirect-probe relaying via a small `relays_` table. `poll()`/`tick()` driven like `Session`.
+  `docs/DESIGN-swim.md` (incl. detection-time math for T=1s,k=3,N=5) + `DECISIONS.md` D17–D21.
+- `demo/mesh_node.cc`: 5 nodes on SimNet + virtual clock, live membership table; partitions one
+  node and heals it, printing time-to-detect / time-to-reconverge. Portable (no epoll) — built
+  in a distinct CMake block. Sample run (seed 20260720): detect **1020ms**, reconverge **2040ms**,
+  victim never falsely DEAD.
+- `tests/unit/swim_test.cc` (7 tests, seeded SimNet): incarnation precedence incl. the exact
+  stale-rumor interleaving + self-refutation + Dead-terminal; crash → suspect → dead detection;
+  **partition+heal reconverges** (4 seeds); **invariant 6** — a live reachable node is never
+  confirmed dead while refutations flow (5 seeds, 10% loss, 30s virtual); JOIN learns roster.
+  A `LinkFilter` transport decorator models partitions without touching SimNet.
+- Verified in Lima under ASan/UBSan: **39/39 ctest green** (7 new SWIM tests); mesh_node runs
+  clean; clang-format clean on all changed files.
+
+**Note on the reconvergence test timing:** at N=5 the spec's detect-before-dead ordering sits
+on the boundary `suspicion_timeout > (N-2)·T`; that one test compresses the clock (period 500ms,
+suspicion 4s) for determinism across seeds — mechanism is identical to the T=1s demo. Detail in
+docs/DESIGN-swim.md.
+
+---
+
 ## Parallel workstreams (2026-07-20) — weeks 2-tail through 5
 
 Split across 4 git worktrees / branches to run as parallel agent sessions. File ownership is
