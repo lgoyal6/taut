@@ -52,7 +52,10 @@ class Swim {
     // Seed a known peer as Alive@0 (cluster bootstrap without a JOIN round).
     void add_member(const Endpoint& peer);
 
-    // Announce ourselves to a known introducer (sends JOIN). Optional bootstrap path.
+    // Announce ourselves to a known introducer (sends JOIN). Bootstrap path for new nodes AND
+    // for a restarted node rejoining under an endpoint the cluster believes Dead: the reply
+    // snapshot carries the Dead@k belief, we refute at k+1, and Alive@k+1 outranks Dead@k
+    // (v0.1.1 precedence; see docs/DESIGN-swim.md "Rejoin").
     void join(const Endpoint& introducer);
 
     // Drain and process every datagram currently readable from the transport.
@@ -107,10 +110,13 @@ class Swim {
     void handle_ping(const Endpoint& from, std::uint32_t probe_id);
     void handle_ping_req(const Endpoint& from, std::uint32_t probe_id, const Endpoint& subject);
     void handle_pong(const Endpoint& from, std::uint32_t probe_id, const Endpoint& subject);
-    void handle_join(const Endpoint& from);
+    // `request` = the JOIN names its sender as subject (a reply names the joiner). Only
+    // requests are answered with a full-snapshot reply, so a join exchange terminates.
+    void handle_join(const Endpoint& from, std::uint32_t joiner_inc, bool request);
 
     // failure-detector state machine
     void start_period(TimePoint now);
+    void probe_one_dead(); // post-Dead refutation channel (v0.1.2, partition heal)
     void send_indirect_probes();
     void conclude_period(TimePoint now);
     void expire_suspects(TimePoint now);

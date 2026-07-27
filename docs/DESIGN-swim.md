@@ -119,16 +119,69 @@ ordering robust across seeds; the mechanism it exercises is identical to the T=1
   hears the suspicion and never refutes — membership would not reconverge. Re-injection keeps
   every open suspicion advertised until it is refuted or confirmed dead.
 - **Basic SWIM only.** No Lifeguard/SWIM+ refinements (suspicion-count-weighted timeouts, local
-  health multiplier, dogpile). Dead is terminal (no rejoin/anti-entropy resurrection). Noted as
-  future work; the incarnation machinery is the part that matters for the interview story.
+  health multiplier, dogpile). The incarnation machinery is the part that matters for the
+  interview story. (v0.1.0 also made Dead terminal; v0.1.1 replaces that — see "Rejoin" below.)
+
+## Rejoin (v0.1.1)
+
+Building tautq (a service that must survive kill-and-restart) exposed that v0.1.0's "Dead is
+terminal at any incarnation" rule makes a restarted node permanently unable to rejoin: its
+refutation `Alive@k+1` could never outrank `Dead@k`, so the cluster ignored it forever. Two
+changes, both protocol-level:
+
+- **Precedence is now lexicographic on `(incarnation, state)`** with `Alive < Suspect < Dead`
+  (the memberlist/Lifeguard ordering). Within one incarnation, evidence only accumulates toward
+  death — Suspect beats Alive, Dead beats both, Dead is unbeatable. A *strictly newer*
+  incarnation beats anything older, **including Dead**: only the subject itself can mint a
+  higher incarnation, so `Alive@k+1` is first-hand proof of life issued after the `Dead@k`
+  verdict's evidence. Death verdicts are declared at the member's then-current incarnation, so
+  a genuinely dead node can never outrank its own death. This also fixes a v0.1.0 wart where a
+  stale `Dead@old` could kill a member already refuted at a higher incarnation.
+- **Rejoin flow needs no new packets:** the restarted node (fresh state, incarnation 0) sends
+  JOIN to any introducer. Its `Alive@0` does not beat `Dead@k`, but the full-snapshot reply
+  carries the cluster's `Dead@k` belief about it; the ordinary self-refutation path re-announces
+  it at `k+1`, which now wins and gossips out. The cluster converges back to Alive with no
+  resurrection special case anywhere.
+- **JOIN request/reply are distinguished by the subject field** (a request names its sender,
+  a reply names the joiner). v0.1.0 answered every JOIN with a JOIN reply — including replies —
+  so any join exchange degenerated into an **infinite JOIN ping-pong** (state converged, so
+  only counting packets catches it; `JoinExchangeTerminates` now does). `handle_join` also now
+  merges the joiner through `apply_rumor` instead of unconditionally adopting/gossiping Alive,
+  which previously let the introducer gossip `Alive` while its own table said Dead.
+
+## Post-Dead refutation channel (v0.1.2)
+
+Caught LIVE by tautq's chaos partition scenario (permanently stalled jobs, both sides of a
+healed partition holding Dead verdicts forever): once Dead verdicts land, the base protocol
+goes silent across the healed link — Dead members are never probed (`pick_target` skips
+them), and the accusation's gossip budget was spent INTO the partition, so even incidental
+contact would not tell the accused to refute. Rejoin (v0.1.1) doesn't help: nobody
+restarted, so nobody JOINs.
+
+Fix, two small mechanics:
+- **Dead-probing:** each protocol period, direct-PING one random Dead member with its own
+  Dead rumor re-queued (fresh budget) so the accusation rides along. A genuinely dead node
+  ignores it (one wasted datagram per period); a live one refutes at `inc+1`, resurrects
+  under the v0.1.1 ordering, and normal gossip re-merges the halves.
+- **Contact-from-dead:** any SWIM packet arriving from a member we believe Dead re-queues
+  its Dead rumor, covering asymmetric heals where only one side still probes.
+
+Verified by `SymmetricPartitionHealsAfterDeadVerdicts` (3 seeds): split {3,4}|{0,1,2} for
+20 s virtual (Dead confirmed both ways), heal, reconverges to all-Alive.
 - **Partitions are modeled by a `LinkFilter` transport decorator** in the test/demo, not by
   editing the shared `SimNet` (owned by feat/core). Symmetric blocking on both endpoints ==
   a bidirectional partition.
 
 ## Verification (all on seeded SimNet, `tests/unit/swim_test.cc`)
 
-- `IncarnationNumbersRejectStaleSuspicion`, `SelfRefutesByBumpingIncarnation`, `DeadIsTerminal`
-  — the precedence rules, including the exact stale-rumor interleaving above.
+- `IncarnationNumbersRejectStaleSuspicion`, `SelfRefutesByBumpingIncarnation`,
+  `DeadStickyWithinIncarnationNewerAliveResurrects` — the precedence rules, including the
+  exact stale-rumor interleaving above and the v0.1.1 rejoin ordering.
+- `JoinExchangeTerminates` — a join is exactly 1 request + 1 reply (counted on the wire);
+  regression for the v0.1.0 infinite JOIN ping-pong.
+- `RestartedNodeRejoins` (3 seeds) — kill a node, confirm Dead cluster-wide, restart it on the
+  same endpoint with fresh state; it rejoins via JOIN → refute@k+1 and the cluster reconverges
+  to all-Alive.
 - `DetectsCrashedNode` — crash → SUSPECT → DEAD, verdict gossiped to every survivor; asserts
   SUSPECT precedes DEAD by ~`suspicion_timeout`.
 - `PartitionHealReconverges` (4 seeds) — isolate a node, detect it, heal; membership

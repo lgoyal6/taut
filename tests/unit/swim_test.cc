@@ -12,6 +12,7 @@
 
 #include <gtest/gtest.h>
 
+#include "taut/codec.h"
 #include "taut/sim_net.h"
 #include "taut/transport.h"
 #include "taut/types.h"
@@ -71,6 +72,35 @@ class LinkFilter : public taut::UdpTransport {
   private:
     taut::UdpTransport& inner_;
     std::unordered_set<std::uint64_t> blocked_;
+};
+
+// A UdpTransport decorator that counts outbound JOIN packets (by decoding each datagram) —
+// how the JoinExchangeTerminates regression test observes the wire without touching SimNet.
+class JoinCounter : public taut::UdpTransport {
+  public:
+    explicit JoinCounter(taut::UdpTransport& inner) : inner_(inner) {}
+
+    int joins = 0;
+
+    std::size_t send(const taut::Endpoint& to, std::span<const std::byte> data) override {
+        taut::Packet p{};
+        if (taut::decode(data, p) == taut::DecodeError::Ok && p.type == taut::PacketType::Join) {
+            ++joins;
+        }
+        return inner_.send(to, data);
+    }
+    std::optional<taut::RecvResult> recv(std::span<std::byte> buf) override {
+        return inner_.recv(buf);
+    }
+    std::chrono::steady_clock::time_point now() const override {
+        return inner_.now();
+    }
+    int fd() const override {
+        return inner_.fd();
+    }
+
+  private:
+    taut::UdpTransport& inner_;
 };
 
 // N-node SWIM mesh over one SimNet, all-to-all seeded Alive at construction (the SWIM paper's
@@ -244,8 +274,12 @@ TEST(Swim, SelfRefutesByBumpingIncarnation) {
     EXPECT_EQ(node.my_incarnation(), 2u);
 }
 
-// Dead is terminal: once confirmed dead a member is not resurrected by a stale Alive.
-TEST(Swim, DeadIsTerminal) {
+// Dead is sticky within an incarnation — at equal or lower incarnation nothing outranks it —
+// but a STRICTLY newer incarnation resurrects, because only the subject itself can mint one,
+// making Alive@k+1 first-hand proof of life issued after the death verdict's evidence
+// (v0.1.1 rejoin semantics; v0.1.0 made Dead terminal at any incarnation, so a restarted
+// node could never rejoin).
+TEST(Swim, DeadStickyWithinIncarnationNewerAliveResurrects) {
     taut::SimNet net(1);
     const auto self = ep(7000);
     const auto p = ep(7001);
@@ -254,7 +288,24 @@ TEST(Swim, DeadIsTerminal) {
 
     node.apply_rumor(p, taut::MemberState::Dead, 5);
     EXPECT_EQ(node.state_of(p), taut::MemberState::Dead);
+
+    // Equal or stale incarnation: no resurrection, whatever the state.
+    node.apply_rumor(p, taut::MemberState::Alive, 5);
+    EXPECT_EQ(node.state_of(p), taut::MemberState::Dead);
+    node.apply_rumor(p, taut::MemberState::Alive, 4);
+    EXPECT_EQ(node.state_of(p), taut::MemberState::Dead);
+    node.apply_rumor(p, taut::MemberState::Suspect, 5);
+    EXPECT_EQ(node.state_of(p), taut::MemberState::Dead);
+
+    // Strictly newer self-announcement: resurrect.
     node.apply_rumor(p, taut::MemberState::Alive, 6);
+    EXPECT_EQ(node.state_of(p), taut::MemberState::Alive);
+    EXPECT_EQ(node.incarnation_of(p), 6u);
+
+    // A stale death verdict cannot re-kill the resurrected member; a current one can.
+    node.apply_rumor(p, taut::MemberState::Dead, 5);
+    EXPECT_EQ(node.state_of(p), taut::MemberState::Alive);
+    node.apply_rumor(p, taut::MemberState::Dead, 6);
     EXPECT_EQ(node.state_of(p), taut::MemberState::Dead);
 }
 
@@ -406,4 +457,116 @@ TEST(Swim, JoinLearnsRoster) {
     EXPECT_EQ(sc.state_of(b), taut::MemberState::Alive); // learned transitively from A's snapshot
     EXPECT_EQ(sa.state_of(c), taut::MemberState::Alive);
     EXPECT_EQ(sb.state_of(c), taut::MemberState::Alive); // learned via gossip
+}
+
+// Regression: a join exchange is exactly one request + one full-snapshot reply. In v0.1.0 the
+// reply was itself a JOIN that got answered with another reply — an infinite JOIN ping-pong
+// (states still converged, so no state assertion could catch it; only counting packets does).
+TEST(Swim, JoinExchangeTerminates) {
+    taut::SimNet net(9, taut::Impairments{.delay = 10ms});
+    const auto a = ep(7000);
+    const auto b = ep(7001);
+    JoinCounter ca(net.endpoint(a));
+    JoinCounter cb(net.endpoint(b));
+    taut::Swim sa(ca, a, default_cfg(), 1);
+    taut::Swim sb(cb, b, default_cfg(), 2);
+
+    sb.join(a);
+    for (int i = 0; i < 500; ++i) { // 10 s virtual — ample time for a ping-pong to blow up
+        net.advance(20ms);
+        sa.poll();
+        sb.poll();
+        sa.tick();
+        sb.tick();
+    }
+
+    EXPECT_EQ(sb.state_of(a), taut::MemberState::Alive);
+    EXPECT_EQ(sa.state_of(b), taut::MemberState::Alive);
+    EXPECT_EQ(cb.joins, 1) << "the joiner sends exactly its initial JOIN request";
+    EXPECT_EQ(ca.joins, 1) << "the introducer sends exactly one full-snapshot JOIN reply";
+}
+
+// Caught live by tautq's chaos partition scenario: a partition held PAST the suspicion
+// timeout leaves both sides holding Dead verdicts for each other. Without a post-Dead
+// refutation channel the halves never exchange another packet (Dead members are never
+// probed) and the accusations' gossip budgets are long spent — the split is permanent.
+// v0.1.2 probes one random Dead member per period carrying its own Dead rumor; a live
+// accused refutes at inc+1 and resurrects (v0.1.1 ordering), re-merging the halves.
+TEST(Swim, SymmetricPartitionHealsAfterDeadVerdicts) {
+    for (std::uint64_t seed : {3u, 21u, 77u}) {
+        Mesh m(seed, taut::Impairments{.delay = 10ms}, 5, default_cfg());
+        for (int i = 0; i < 60; ++i) {
+            m.step(20ms);
+        }
+        ASSERT_TRUE(m.all_alive()) << "seed " << seed;
+
+        // Split {3,4} from {0,1,2}, both directions, and hold well past suspicion_timeout
+        // so both sides confirm the other Dead.
+        for (int a : {3, 4}) {
+            for (int b : {0, 1, 2}) {
+                m.links[static_cast<std::size_t>(a)]->block(m.eps[static_cast<std::size_t>(b)]);
+                m.links[static_cast<std::size_t>(b)]->block(m.eps[static_cast<std::size_t>(a)]);
+            }
+        }
+        for (int i = 0; i < 1000; ++i) { // 20 s virtual >> period + suspicion
+            m.step(20ms);
+        }
+        ASSERT_EQ(m.nodes[0]->state_of(m.eps[4]), taut::MemberState::Dead) << "seed " << seed;
+        ASSERT_EQ(m.nodes[4]->state_of(m.eps[0]), taut::MemberState::Dead) << "seed " << seed;
+
+        m.heal_all();
+        bool healed = false;
+        for (int i = 0; i < 3000 && !healed; ++i) { // up to 60 s virtual
+            m.step(20ms);
+            healed = m.all_alive();
+        }
+        EXPECT_TRUE(healed) << "seed " << seed
+                            << ": both sides must reconverge after Dead verdicts — the "
+                               "post-Dead refutation channel is what makes this possible";
+    }
+}
+
+// The tautq-motivating scenario: a node is killed, confirmed Dead cluster-wide, then restarts
+// on the SAME endpoint with fresh state (incarnation 0) and rejoins via an introducer. The
+// snapshot reply tells it it is believed Dead@k; it refutes at k+1, which outranks Dead@k
+// under the v0.1.1 precedence, and the whole cluster reconverges to all-Alive.
+TEST(Swim, RestartedNodeRejoins) {
+    for (std::uint64_t seed : {1u, 7u, 42u}) {
+        Mesh m(seed, taut::Impairments{.delay = 10ms}, 5, default_cfg());
+        const int victim = 3;
+
+        for (int i = 0; i < 50; ++i) {
+            m.step(20ms);
+        }
+        ASSERT_TRUE(m.all_alive()) << "seed " << seed;
+
+        m.crash(victim);
+        for (int i = 0; i < 1200 && !m.everyone_sees(victim, taut::MemberState::Dead); ++i) {
+            m.step(20ms);
+        }
+        ASSERT_TRUE(m.everyone_sees(victim, taut::MemberState::Dead)) << "seed " << seed;
+
+        // Restart: a brand-new Swim on the same endpoint — empty membership, incarnation 0 —
+        // that knows only the introducer. (The transport keeps its inbound queue: late
+        // packets addressed to the dead process greeting the new one is exactly real life.)
+        m.nodes[victim] = std::make_unique<taut::Swim>(*m.links[victim], m.eps[victim],
+                                                       default_cfg(), seed * 1000 + 99);
+        m.down.erase(victim);
+        m.nodes[victim]->join(m.eps[0]);
+
+        bool converged = false;
+        for (int i = 0; i < 1500 && !converged; ++i) { // ≤ 30 s virtual
+            m.step(20ms);
+            converged = m.all_alive();
+        }
+        EXPECT_TRUE(converged) << "seed " << seed << ": cluster must reconverge to all-Alive";
+        EXPECT_GT(m.nodes[victim]->my_incarnation(), 0u)
+            << "seed " << seed << ": rejoin must pass through an incarnation-bump refutation";
+        for (int j = 0; j < m.size(); ++j) {
+            if (j != victim) {
+                EXPECT_EQ(m.nodes[victim]->state_of(m.eps[j]), taut::MemberState::Alive)
+                    << "seed " << seed << ": rejoined node must relearn the full roster";
+            }
+        }
+    }
 }

@@ -155,3 +155,25 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 - Symmetric block on both endpoints == bidirectional partition; keeps the shared SimNet
   (feat/core) unedited. k=3 indirect probes, T=1 s, suspicion 3 s are the §5.9 reference values.
 - Rationale (Laksh): _______________________________________________
+
+### D26. (v0.1.1) SWIM rejoin: **lexicographic `(incarnation, state)` precedence + JOIN reply marking**
+- tautq (kill/restart chaos) exposed that v0.1.0's terminal-Dead rule makes restart-and-rejoin
+  impossible, and that JOIN replies were themselves answered (infinite JOIN ping-pong).
+- `Alive@k+1` now resurrects `Dead@k` (memberlist/Lifeguard ordering; only the subject mints
+  higher incarnations, so it is first-hand proof of life). JOIN replies name the joiner as
+  subject so only requests are answered. No wire-format change. (docs/DESIGN-swim.md "Rejoin".)
+- Rationale (Laksh): approved 2026-07-27 in the tautq protocol brief (§0) — chaos scenarios
+  (a) SIGKILL+restart and (d) stale-log restart require rejoin.
+
+### D27. (v0.1.2) SWIM post-Dead refutation channel: **dead-probing + Dead-rumor re-send on contact**
+- Found LIVE by tautq's chaos partition scenario: a partition held past suspicion_timeout
+  leaves both sides holding Dead verdicts; base SWIM then never exchanges another packet
+  across the healed link (Dead members are never probed) and the accusation's gossip budget
+  is spent, so the accused never refutes — a permanent split. Rejoin (D26) doesn't apply:
+  nothing restarted.
+- One direct PING per period to a random Dead member, carrying its own Dead rumor
+  (re-queued, fresh budget); a live accused refutes at inc+1 and resurrects under the D26
+  ordering. Any packet FROM a Dead-believed member also re-queues its Dead rumor.
+  (docs/DESIGN-swim.md "Post-Dead refutation channel".)
+- Rationale (Laksh): part of the standing tautq mandate ("finish all modules") — the chaos
+  suite's §5 assertions define correctness; this was a straight bug against them.

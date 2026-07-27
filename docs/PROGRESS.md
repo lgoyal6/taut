@@ -5,6 +5,52 @@ Format: newest at top within each week.
 
 ---
 
+## tautq phase — v0.1.2: SWIM post-Dead refutation channel (2026-07-27)
+
+**Found LIVE by tautq's chaos partition scenario** (8 permanently-stalled jobs): a
+partition held past `suspicion_timeout` leaves both sides holding Dead verdicts, and base
+SWIM then never reconverges — Dead members are never probed (no packet ever crosses the
+healed link again) and the accusation's gossip budget was spent into the partition, so the
+accused never hears it and never refutes. D26's rejoin doesn't apply (nothing restarted).
+
+**Fix:** one direct PING per period to a random Dead member carrying its own re-queued
+Dead rumor (a live accused refutes at inc+1 → resurrect via the v0.1.1 ordering); plus any
+packet FROM a Dead-believed member re-queues its Dead rumor. D27 recorded; DESIGN-swim.md
+"Post-Dead refutation channel"; `version()` 0.1.2.
+
+**Verified in Lima under ASan/UBSan: 58/58 ctest green** (new
+`SymmetricPartitionHealsAfterDeadVerdicts`, 3 seeds: Dead both ways → heal → all-Alive).
+tautq chaos partition scenario re-run: PASS (60/60 accepted jobs delivered). Not yet
+committed/tagged.
+
+---
+
+## tautq phase — v0.1.1: SWIM rejoin (2026-07-27)
+
+**New project approved:** tautq — a distributed webhook-delivery service (work queue) on taut;
+5 nodes, no coordinator, replicated jobs, leases with visibility timeouts, chaos suite, load
+test. Protocol approved by Laksh 2026-07-27: ring-routed ownership pinned at submit (replica
+set of 3), majority commit (W=2, fsync) on SUBMIT/LEASE/DONE/TAKEOVER, per-job owner-epoch
+fencing, majority takeover, CP stall on minority partitions. Semantics: at-least-once
+execution, exactly-once completion. Repo: sibling `tautq` (scaffolded), vendors taut.
+Full brief recorded in `tautq/docs/DESIGN-protocol.md`; decisions in `tautq/docs/DECISIONS.md`.
+
+**Shipped — taut v0.1.1 (prerequisite):** feasibility check found v0.1.0 SWIM cannot rejoin a
+restarted node (Dead terminal at any incarnation) and every JOIN exchange is an infinite JOIN
+ping-pong (replies answered with replies). Fixes: lexicographic `(incarnation, state)`
+precedence — `Alive@k+1` resurrects `Dead@k` (memberlist ordering); JOIN replies name the
+joiner as subject so only requests are answered; `handle_join` merges via `apply_rumor`
+(introducer no longer gossips Alive while its table says Dead). No wire-format change.
+`version()` 0.0.1 → 0.1.1 (0.0.1 was a stale string never bumped for v0.1.0). D26 recorded;
+DESIGN-swim.md "Rejoin" section added.
+
+**Verified in Lima under ASan/UBSan: 57/57 ctest green** (was 55; `DeadIsTerminal` rewritten as
+`DeadStickyWithinIncarnationNewerAliveResurrects`, new `JoinExchangeTerminates` (wire-count
+regression) + `RestartedNodeRejoins` (3 seeds, kill → Dead cluster-wide → same-endpoint restart
+→ all-Alive)). clang-format clean. Not yet committed/tagged.
+
+---
+
 ## Final status — v0.1.0 (2026-07-21)
 
 Shipped and verified: codec + CRC32C (hand-laid golden vector + libFuzzer, ASan/UBSan-clean),

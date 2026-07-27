@@ -3,7 +3,7 @@
 namespace taut {
 
 const char* version() {
-    return "0.0.1";
+    return "0.1.2";
 }
 
 } // namespace taut
