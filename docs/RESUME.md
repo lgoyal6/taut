@@ -21,6 +21,27 @@ Tighter one-liner if space is short:
 > classes, SWIM) — fuzzed, netem-soaked, and benchmarked against kernel TCP + ENet; **~6–12× lower
 > p99 latency than TCP under 5–20 % loss** at ~1.2× bandwidth overhead.
 
+## The "used in anger" upgrade (2026-07-27, v0.1.1–v0.1.2)
+
+taut now powers **[tautq](https://github.com/lgoyal6/tautq)**, a 5-node distributed
+webhook-delivery service whose entire cluster plane (replication RPCs, failover claims,
+membership) rides taut — see `tautq/docs/RESUME.md` for its bullets. Operating taut for
+real found and fixed two SWIM protocol gaps, which is itself resume material:
+
+- **v0.1.1 — rejoin:** base SWIM's terminal-Dead rule meant a killed-and-restarted node
+  could never rejoin. Fixed with lexicographic `(incarnation, state)` precedence
+  (memberlist-style: `Alive@k+1` resurrects `Dead@k`), plus a JOIN reply-marking fix that
+  killed an infinite JOIN ping-pong. Found at tautq design time (chaos needs restarts).
+- **v0.1.2 — post-Dead refutation channel:** a partition held past the suspicion timeout
+  splits the cluster PERMANENTLY (both sides hold Dead verdicts; Dead members are never
+  probed; the accusation's gossip budget is spent). Found LIVE by tautq's chaos partition
+  scenario as 8 forever-stalled jobs; fixed by probing one Dead member per period carrying
+  its own death rumor. Regression: `SymmetricPartitionHealsAfterDeadVerdicts`.
+
+Interview line: *"The library looked done at v0.1.0 — 58 green tests, real benchmarks.
+Building a service on it immediately found two membership-protocol gaps that only shows up
+under operational failure patterns. That's why I built the service."*
+
 ## Honest interview framing
 - If asked how it was built: "AI-assisted implementation — the design decisions, verification
   strategy, and analysis are mine." (True only to the extent you can defend it — see the gap below.)

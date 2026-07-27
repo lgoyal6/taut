@@ -22,9 +22,12 @@ The expected result is **much lower p99 message latency than TCP at 5–10 % los
 measured cost in bandwidth overhead and clean-link throughput.** Both sides of that trade
 get plotted — a graph where taut wins at everything would mean the benchmark is broken.
 
-> **Status: in active development** (5-week build). See [`PLAN.md`](PLAN.md) for the full
-> scope and [`docs/PROGRESS.md`](docs/PROGRESS.md) for exactly what is implemented today
-> vs. planned. Per-module design notes live in [`docs/`](docs/).
+> **Status: v0.1.2.** The library is complete and **powers
+> [tautq](https://github.com/lgoyal6/tautq)**, a 5-node distributed webhook-delivery
+> service whose replication, failover, and membership plane all ride taut — its chaos
+> suite found the v0.1.1 (SWIM rejoin) and v0.1.2 (post-Dead partition-heal) protocol
+> fixes here. See [`docs/PROGRESS.md`](docs/PROGRESS.md) for the full history and
+> per-module design notes in [`docs/`](docs/).
 
 ## Architecture
 
