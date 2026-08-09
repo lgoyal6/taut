@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>taut: reliable UDP that refuses to wait, live in your tab</title>
+<meta name="description" content="taut's real ARQ code compiled to WebAssembly, running over its deterministic network simulator. Set the packet loss, race a 25ms retransmit floor against TCP's 200ms, and watch every message arrive exactly once.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 8h4l2-5 2 10 2-5h4' stroke='%23c48134' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="mast-title">
+    <h1>taut</h1>
+    <span class="led" id="led" data-state="off"></span>
+    <span class="led-label" id="led-label">loading engine…</span>
+  </div>
+  <p class="thesis">A reliable-UDP transport library in C++20. This page runs the real
+  protocol code, sliding-window ARQ, SACK, fast retransmit, RTO estimation, over the
+  library's own deterministic network simulator. Same seed, same result, every time.</p>
+</header>
+
+<main id="panel" hidden>
+
+  <!-- the link -->
+  <section class="card">
+    <h2 class="eyebrow">break the link</h2>
+    <div class="knobs">
+      <label>packet loss <b id="loss-val" class="mono">10%</b>
+        <input type="range" id="loss" min="0" max="30" value="10" step="1">
+      </label>
+      <label>one-way delay <b id="delay-val" class="mono">20ms</b>
+        <input type="range" id="delay" min="1" max="100" value="20" step="1">
+      </label>
+      <label>jitter <b id="jitter-val" class="mono">10ms</b>
+        <input type="range" id="jitter" min="0" max="50" value="10" step="1">
+      </label>
+      <label>messages <b id="count-val" class="mono">500</b>
+        <input type="range" id="count" min="100" max="2000" value="500" step="100">
+      </label>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-copper" id="race">Run the race</button>
+      <button class="btn" id="reseed">New seed</button>
+      <span class="seed mono" id="seed-label"></span>
+    </div>
+  </section>
+
+  <!-- the race -->
+  <section class="card">
+    <div class="race-head">
+      <h2 class="eyebrow">delivery race: same protocol, same seed, one knob apart</h2>
+      <div class="legend mono">
+        <span><i class="swatch copper"></i>rto floor 25ms (taut)</span>
+        <span><i class="swatch steel"></i>rto floor 200ms (TCP's default)</span>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <svg id="chart" viewBox="0 0 720 300" role="img" aria-label="messages delivered over virtual time for both retransmit floors"></svg>
+      <div class="tooltip mono" id="tooltip" hidden></div>
+    </div>
+    <p class="hint dim">x: virtual milliseconds on the simulated link · y: messages delivered.
+    The gap between the curves is what a stalled retransmit timer costs.</p>
+  </section>
+
+  <!-- verdicts -->
+  <section class="grid2">
+    <div class="card run-card" id="card-a">
+      <h2 class="eyebrow copper-text">rto floor 25ms</h2>
+      <div class="tiles-inline" id="tiles-a"></div>
+    </div>
+    <div class="card run-card" id="card-b">
+      <h2 class="eyebrow steel-text">rto floor 200ms</h2>
+      <div class="tiles-inline" id="tiles-b"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="verdict mono" id="verdict">press run: the simulator is deterministic, so every number below reproduces from the seed.</div>
+  </section>
+
+  <footer class="foot">
+    <p>Measured on real hardware with netem, the native library cuts worst-case round-trip
+    latency 6x below the operating system's default at 5% packet loss and 12x at 20%, at the
+    cost of bulk throughput, which the default wins by 27x. The tradeoff is the point: this
+    is a transport for small urgent messages on links you control.</p>
+    <p class="dim">Built by <a href="https://lakshgoyal.com">Laksh Goyal</a> ·
+    <a href="https://github.com/lgoyal6/taut">github.com/lgoyal6/taut</a></p>
+  </footer>
+
+</main>
+
+<script src="demo/taut.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
