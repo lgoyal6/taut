@@ -5,6 +5,11 @@ sliding-window ARQ, adaptive RTO (Jacobson/Karn), per-message reliability classe
 SWIM failure detection — fuzz-hardened, fault-injected with `netem`, and benchmarked
 honestly against kernel TCP (`TCP_NODELAY`) and ENet.
 
+**Live demo:** [lgoyal6.github.io/taut](https://lgoyal6.github.io/taut/), the real
+protocol code in your tab: your cursor becomes the message stream, and two receivers
+chase it through the same lossy link, a 25 ms retransmit floor against the kernel's
+200 ms.
+
 ## Thesis
 
 General-purpose transports carry obligations a small-telemetry mesh can drop. TCP must

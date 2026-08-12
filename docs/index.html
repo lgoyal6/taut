@@ -3,93 +3,146 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>taut: reliable UDP that refuses to wait, live in your tab</title>
-<meta name="description" content="taut's real ARQ code compiled to WebAssembly, running over its deterministic network simulator. Set the packet loss, race a 25ms retransmit floor against TCP's 200ms, and watch every message arrive exactly once.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 8h4l2-5 2 10 2-5h4' stroke='%23c48134' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<title>taut — reliable UDP that refuses to wait</title>
+<meta name="description" content="A reliable-UDP transport library in C++20, running live in your tab. The kernel's retransmit timer refuses to fire before 200ms; taut's floor is 25. Feel the difference, then measure it.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="taut — reliable UDP that refuses to wait">
+<meta property="og:description" content="The real protocol code, live in your tab: your cursor becomes the message stream, two receivers chase it through the same lossy link, one retransmit floor apart.">
+<meta property="og:url" content="https://lgoyal6.github.io/taut/">
+<meta property="og:image" content="https://lgoyal6.github.io/taut/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 8h4l2-5 2 10 2-5h4' stroke='%236e1423' stroke-width='2' fill='none'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header class="mast">
-  <div class="mast-title">
-    <h1>taut</h1>
-    <span class="led" id="led" data-state="off"></span>
-    <span class="led-label" id="led-label">loading engine…</span>
+<header class="gut">
+  <div>
+    <div class="eyebrow">reliable-udp transport &middot; c++20 &middot; zero-dependency core &middot;
+      <span class="led-label" id="led-label">loading engine&hellip;</span></div>
+    <h1>taut<span>.</span></h1>
+    <p class="thesis">Small urgent messages, delivered exactly once and on time, over links that
+    drop packets. The kernel's retransmit timer refuses to fire before <i>200 milliseconds</i>;
+    taut's floor is <b>25</b>. On a bad link, that one constant is the whole story. The protocol
+    below is the real library, compiled to WebAssembly, running over its own deterministic
+    network simulator.</p>
+    <div class="hdr-links">
+      <a href="https://github.com/lgoyal6/taut">github.com/lgoyal6/taut</a>
+      <a href="#measure">skip to the numbers &darr;</a>
+    </div>
   </div>
-  <p class="thesis">A reliable-UDP transport library in C++20. This page runs the real
-  protocol code, sliding-window ARQ, SACK, fast retransmit, RTO estimation, over the
-  library's own deterministic network simulator. Same seed, same result, every time.</p>
+  <div>
+    <div class="stats">
+      <div class="stat k1"><span class="n">6&times;</span><span class="l">lower worst-case RTT at 5% packet loss, vs kernel TCP</span></div>
+      <div class="stat"><span class="n">12&times;</span><span class="l">lower at 20% loss</span></div>
+      <div class="stat"><span class="n">27&times;</span><span class="l">bulk throughput, where kernel TCP wins; the tradeoff is the point</span></div>
+    </div>
+    <p class="stats-note">measured on real hardware with netem &middot; seeds fixed &middot; raw CSVs and scripts in the repo</p>
+  </div>
 </header>
 
-<main id="panel" hidden>
-
-  <!-- the link -->
-  <section class="card">
-    <h2 class="eyebrow">break the link</h2>
-    <div class="knobs">
-      <label>packet loss <b id="loss-val" class="mono">10%</b>
-        <input type="range" id="loss" min="0" max="30" value="10" step="1">
-      </label>
-      <label>one-way delay <b id="delay-val" class="mono">20ms</b>
-        <input type="range" id="delay" min="1" max="100" value="20" step="1">
-      </label>
-      <label>jitter <b id="jitter-val" class="mono">10ms</b>
-        <input type="range" id="jitter" min="0" max="50" value="10" step="1">
-      </label>
-      <label>messages <b id="count-val" class="mono">500</b>
-        <input type="range" id="count" min="100" max="2000" value="500" step="100">
+<section id="feel" class="gut">
+  <div class="sec-bar">
+    <span class="no">01</span><h2>Feel it</h2>
+    <span class="lede">your cursor is the message stream; two receivers chase it through identically seeded links, one knob apart</span>
+  </div>
+  <div class="bench">
+    <div class="toolbar">
+      <span class="lag lag-a">25ms floor &nbsp;<b id="lag-g">&ndash;</b> behind &middot; <span id="retx-a">0</span> repairs</span>
+      <span class="lag lag-b">200ms floor <b id="lag-a">&ndash;</b> behind &middot; <span id="retx-b">0</span> repairs</span>
+      <label>packet loss <b id="loss-val">15%</b>
+        <input type="range" id="loss" min="0" max="30" value="15" step="1" aria-label="packet loss percent">
       </label>
     </div>
-    <div class="btn-row">
-      <button class="btn btn-copper" id="race">Run the race</button>
-      <button class="btn" id="reseed">New seed</button>
-      <span class="seed mono" id="seed-label"></span>
+    <div class="field-wrap">
+      <canvas id="field" tabindex="0" aria-label="latency instrument: move your cursor and watch two receivers track it through a lossy link"></canvas>
+      <div class="field-hint" id="hint">loading engine&hellip;</div>
     </div>
-  </section>
+  </div>
+  <p class="fig"><b>Fig. 1.</b> Every cursor sample is a real message through the library's
+  sliding-window ARQ. The filled mark receives with a 25ms retransmit floor, the open mark with
+  the kernel's 200ms, over links seeded identically. Delivery is in-order, so one unrepaired loss
+  stalls everything behind it: the open mark freezes, then jumps. <i>SACK and fast retransmit
+  repair most holes at either floor; when the loss takes the feedback with it, the floor is all
+  that's left, and that is what you feel.</i></p>
+</section>
 
-  <!-- the race -->
-  <section class="card">
-    <div class="race-head">
-      <h2 class="eyebrow">delivery race: same protocol, same seed, one knob apart</h2>
-      <div class="legend mono">
-        <span><i class="swatch copper"></i>rto floor 25ms (taut)</span>
-        <span><i class="swatch steel"></i>rto floor 200ms (TCP's default)</span>
+<section id="measure" class="gut">
+  <div class="sec-bar">
+    <span class="no">02</span><h2>Measure it</h2>
+    <span class="lede">same protocol, same seed; 500 messages race once per floor, deterministically</span>
+  </div>
+  <div class="measure-grid">
+    <div>
+      <div class="controls">
+        <button class="btn btn-ox" id="run">Run the race</button>
+        <button class="btn" id="reseed">New seed</button>
+        <span class="seed" id="seed-label"></span>
       </div>
+      <svg id="race" viewBox="0 0 840 340" role="img" aria-label="messages delivered over time for both retransmit floors"></svg>
+      <p class="fig"><b>Fig. 2.</b> Messages delivered over virtual time. Every plateau in the
+      dashed run is a stalled retransmit timer the kernel default spends waiting out; the solid
+      run crosses the same link with the 25ms floor. The simulator is deterministic: every number
+      on this page reproduces from the seed.</p>
     </div>
-    <div class="chart-wrap">
-      <svg id="chart" viewBox="0 0 720 300" role="img" aria-label="messages delivered over virtual time for both retransmit floors"></svg>
-      <div class="tooltip mono" id="tooltip" hidden></div>
+    <div>
+      <table class="results" aria-label="results table">
+        <caption>Table 1. One race, both floors, virtual ms.</caption>
+        <thead><tr><th></th><th>25ms</th><th>200ms</th><th>&times;</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <p class="verdict" id="verdict">running&hellip;</p>
     </div>
-    <p class="hint dim">x: virtual milliseconds on the simulated link · y: messages delivered.
-    The gap between the curves is what a stalled retransmit timer costs.</p>
-  </section>
+  </div>
+</section>
 
-  <!-- verdicts -->
-  <section class="grid2">
-    <div class="card run-card" id="card-a">
-      <h2 class="eyebrow copper-text">rto floor 25ms</h2>
-      <div class="tiles-inline" id="tiles-a"></div>
+<section id="saw" class="gut">
+  <div class="sec-bar">
+    <span class="no">03</span><h2>What you just saw</h2>
+    <span class="lede">every behavior above is a specific piece of the library</span>
+  </div>
+  <div class="map">
+    <div class="map-cell">
+      <span class="k">THE FREEZE</span>
+      <div class="saw">The open mark stalling, then snapping forward in a burst.</div>
+      <div class="is">A retransmit timeout expiring. In-order delivery means one lost packet blocks
+      everything behind it until the repair lands; a 200ms floor holds that hole open for at least
+      200ms. The estimator and its floor: <code>src/rto.cc</code></div>
     </div>
-    <div class="card run-card" id="card-b">
-      <h2 class="eyebrow steel-text">rto floor 200ms</h2>
-      <div class="tiles-inline" id="tiles-b"></div>
+    <div class="map-cell">
+      <span class="k">THE RECOVERY</span>
+      <div class="saw">The filled mark taking the same weather as small hiccups.</div>
+      <div class="is">The same repair bounded by a 25ms floor, plus SACK and fast retransmit
+      catching most holes before any timeout fires: the send ring, ack processing, and both
+      recovery paths live in <code>src/session.cc</code></div>
     </div>
-  </section>
+    <div class="map-cell">
+      <span class="k">THE WEATHER</span>
+      <div class="saw">Loss, delay, and jitter that reproduce exactly from a seed.</div>
+      <div class="is">The library's own deterministic network simulator: the demo and the test
+      suite exercise identical code paths, and any failure replays from its seed:
+      <code>src/sim_net.cc</code></div>
+    </div>
+    <div class="map-cell">
+      <span class="k">THE CONTRACT</span>
+      <div class="saw">Every message arriving exactly once, in order, despite the chaos.</div>
+      <div class="is">Sequencing, acknowledgment, and dedup in the wire format, every datagram
+      CRC-framed: <code>src/codec.cc</code>, <code>src/crc32c.cc</code>. A run that violates this
+      is a protocol bug, and the page says so.</div>
+    </div>
+  </div>
+</section>
 
-  <section class="card">
-    <div class="verdict mono" id="verdict">press run: the simulator is deterministic, so every number below reproduces from the seed.</div>
-  </section>
-
-  <footer class="foot">
-    <p>Measured on real hardware with netem, the native library cuts worst-case round-trip
-    latency 6x below the operating system's default at 5% packet loss and 12x at 20%, at the
-    cost of bulk throughput, which the default wins by 27x. The tradeoff is the point: this
-    is a transport for small urgent messages on links you control.</p>
-    <p class="dim">Built by <a href="https://lakshgoyal.com">Laksh Goyal</a> ·
-    <a href="https://github.com/lgoyal6/taut">github.com/lgoyal6/taut</a></p>
-  </footer>
-
-</main>
+<footer class="gut">
+  <p>taut trades bulk throughput for bounded urgency: kernel TCP moves big files 27&times; faster,
+  and taut answers 6&ndash;12&times; sooner when packets are dying. Both sides of that trade are
+  measured and published, because a benchmark table where one side wins everything means the
+  benchmark is broken.</p>
+  <div class="links">
+    Built by <a href="https://lakshgoyal.com">Laksh Goyal</a> &middot; <a href="https://github.com/lgoyal6/taut">source</a><br>
+    also live: <a href="https://lgoyal6.github.io/strata/">strata</a> &middot; <a href="https://lgoyal6.github.io/tollgate/">tollgate</a>
+  </div>
+</footer>
 
 <script src="demo/taut.js"></script>
 <script src="app.js"></script>

@@ -1,11 +1,15 @@
 // C ABI for the browser demo. Runs real Sessions over the deterministic SimNet
 // with a virtual clock, so a multi-second lossy transfer completes in real
-// milliseconds. One call = one full experiment; the result is a JSON string
-// (valid until the next call) with a delivery timeline and latency percentiles.
+// milliseconds. Two surfaces:
+//   tt_run          — one call = one full batch experiment, JSON result
+//   tt_feel_*       — a persistent pair of experiments (rto floor 25ms vs 200ms)
+//                     stepped in real time from the page's animation loop
+// Returned strings are valid until the next call into the same surface.
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -142,6 +146,165 @@ const char* tt_run(double seed, double loss_pct, int delay_ms, int jitter_ms,
     out += ",\"timeline\":" + timeline;
     out += "}";
     return ret(std::move(out));
+}
+
+} // extern "C"
+
+// ---------------------------------------------------------------------------
+// tt_feel_*: the cursor-echo instrument. Two independent experiments share one
+// virtual clock cadence; each is a real Session pair over its own SimNet. The
+// nets are seeded identically, so the links are statistically identical, but
+// once retransmit schedules diverge the per-packet RNG draws diverge too —
+// same weather, not the same raindrops.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+struct FeelDelivery {
+    std::uint32_t seq;
+    float x, y;
+    int lat_ms;
+};
+
+struct FeelChannel {
+    std::unique_ptr<taut::SimNet> net;
+    std::unique_ptr<taut::Session> tx;
+    std::unique_ptr<taut::Session> rx;
+    taut::SimNet::TimePoint t0{};
+    std::uint32_t next_msg = 0;
+    std::vector<int> send_ms;            // per-seq virtual send time
+    std::vector<FeelDelivery> delivered; // drained by tt_feel_step
+
+    int now_ms() const {
+        return static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(net->now() - t0).count());
+    }
+};
+
+FeelChannel g_feel[2];
+bool g_feel_ready = false;
+std::string g_feel_ret;
+
+const char* feel_ret(std::string s) {
+    g_feel_ret = std::move(s);
+    return g_feel_ret.c_str();
+}
+
+void feel_make(FeelChannel& ch, double seed, double loss_pct, int delay_ms, int jitter_ms,
+               int rto_floor_ms) {
+    taut::Impairments imp;
+    imp.loss = loss_pct / 100.0;
+    imp.delay = std::chrono::milliseconds(delay_ms);
+    imp.jitter = std::chrono::milliseconds(jitter_ms);
+
+    ch.net = std::make_unique<taut::SimNet>(static_cast<std::uint64_t>(seed), imp);
+    const auto a = ep(1);
+    const auto b = ep(2);
+
+    taut::Config cfg;
+    cfg.window_pkts = 64;
+    cfg.rto_floor = std::chrono::milliseconds(rto_floor_ms);
+
+    ch.tx = std::make_unique<taut::Session>(ch.net->endpoint(a), b, cfg);
+    ch.rx = std::make_unique<taut::Session>(ch.net->endpoint(b), a, cfg);
+    ch.t0 = ch.net->now();
+    ch.next_msg = 0;
+    ch.send_ms.clear();
+    ch.delivered.clear();
+
+    FeelChannel* chp = &ch;
+    ch.rx->on_message([chp](taut::Class, taut::ByteSpan p) {
+        if (p.size() < 12) {
+            return;
+        }
+        FeelDelivery d{};
+        std::memcpy(&d.seq, p.data(), 4);
+        std::memcpy(&d.x, p.data() + 4, 4);
+        std::memcpy(&d.y, p.data() + 8, 4);
+        d.lat_ms = (d.seq < chp->send_ms.size()) ? chp->now_ms() - chp->send_ms[d.seq] : 0;
+        chp->delivered.push_back(d);
+    });
+}
+
+} // namespace
+
+extern "C" {
+
+// (Re)build both experiments. Floors are fixed: channel a = 25ms, channel b = 200ms.
+EMSCRIPTEN_KEEPALIVE
+int tt_feel_init(double seed, double loss_pct, int delay_ms, int jitter_ms) {
+    feel_make(g_feel[0], seed, loss_pct, delay_ms, jitter_ms, 25);
+    feel_make(g_feel[1], seed, loss_pct, delay_ms, jitter_ms, 200);
+    g_feel_ready = true;
+    return 0;
+}
+
+// Send one cursor sample (12-byte payload: seq, x, y) on both channels.
+// Returns {"a":seq,"b":seq}; -1 where the send queue pushed back.
+EMSCRIPTEN_KEEPALIVE
+const char* tt_feel_send(double x, double y) {
+    if (!g_feel_ready) {
+        return feel_ret("{\"a\":-1,\"b\":-1}");
+    }
+    long long seqs[2];
+    for (int i = 0; i < 2; i++) {
+        FeelChannel& ch = g_feel[i];
+        std::byte payload[12];
+        const std::uint32_t seq = ch.next_msg;
+        const float fx = static_cast<float>(x);
+        const float fy = static_cast<float>(y);
+        std::memcpy(payload, &seq, 4);
+        std::memcpy(payload + 4, &fx, 4);
+        std::memcpy(payload + 8, &fy, 4);
+        if (ch.tx->send(taut::Class::ReliableOrdered, taut::ByteSpan(payload, 12))) {
+            ch.send_ms.push_back(ch.now_ms());
+            ch.next_msg++;
+            seqs[i] = seq;
+        } else {
+            seqs[i] = -1;
+        }
+    }
+    return feel_ret("{\"a\":" + std::to_string(seqs[0]) + ",\"b\":" + std::to_string(seqs[1]) +
+                    "}");
+}
+
+// Advance both experiments dt virtual ms (5ms sub-steps, same cadence as tt_run)
+// and drain deliveries. Returns
+// {"a":{"msgs":[[seq,x,y,lat],...],"retx":n},"b":{...}}
+EMSCRIPTEN_KEEPALIVE
+const char* tt_feel_step(int dt_ms) {
+    if (!g_feel_ready) {
+        return feel_ret("{}");
+    }
+    dt_ms = std::clamp(dt_ms, 0, 250);
+    for (int done = 0; done < dt_ms; done += 5) {
+        const auto step = std::chrono::milliseconds(std::min(5, dt_ms - done));
+        for (FeelChannel& ch : g_feel) {
+            ch.net->advance(step);
+            ch.tx->poll();
+            ch.rx->poll();
+            ch.tx->tick();
+            ch.rx->tick();
+        }
+    }
+    std::string out = "{";
+    const char* names[2] = {"\"a\":", "\"b\":"};
+    for (int i = 0; i < 2; i++) {
+        FeelChannel& ch = g_feel[i];
+        out += names[i];
+        out += "{\"msgs\":[";
+        for (std::size_t m = 0; m < ch.delivered.size(); m++) {
+            const FeelDelivery& d = ch.delivered[m];
+            out += (m ? "," : "");
+            out += "[" + std::to_string(d.seq) + "," + std::to_string(d.x) + "," +
+                   std::to_string(d.y) + "," + std::to_string(d.lat_ms) + "]";
+        }
+        out += "],\"retx\":" + std::to_string(ch.tx->retransmits()) + "}";
+        out += (i == 0 ? "," : "");
+        ch.delivered.clear();
+    }
+    out += "}";
+    return feel_ret(std::move(out));
 }
 
 } // extern "C"

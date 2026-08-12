@@ -1,137 +1,230 @@
-// taut demo: run the real protocol over SimNet's virtual clock, twice per race
-// (rto floor 25ms vs 200ms, same seed), then draw the delivery curves.
+// taut demo: the real library (wasm) on two surfaces.
+//   01 FEEL IT   — tt_feel_*: a persistent Session pair per RTO floor, stepped
+//                  from the animation loop; your cursor samples are the messages.
+//   02 MEASURE   — tt_run: one deterministic 500-message race per floor.
 
-let run = null;      // cwrap'd tt_run
-let seed = 1;
-let lastRace = null; // { a, b } parsed results for the tooltip
+let run = null, feelInit = null, feelSend = null, feelStep = null;
+let ready = false;
 
 const $ = (id) => document.getElementById(id);
-const fmt = (n) => Number(n).toLocaleString('en-US');
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const INK = css('--ink'), OX = css('--ox'), SUB = css('--sub'), FAINT = css('--faint'), HAIR = css('--hair');
+
+const LINK = { delay: 20, jitter: 10 };
+let lossPct = 15;
+let feelSeed = 1 + Math.floor(Math.random() * 999999);
+// First paint is deterministic: a fixed, typical seed (the sweep in
+// bench/BENCHMARKS.md style: some seeds favor the floor 6x, a few punish it
+// with loss streaks). New seed explores the real distribution.
+let raceSeed = 6;
 
 TautModule({ locateFile: (f) => 'demo/' + f }).then((M) => {
   run = M.cwrap('tt_run', 'string',
     ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']);
-  $('led').dataset.state = 'on';
-  $('led-label').textContent = 'engine loaded · deterministic simulator';
-  $('panel').hidden = false;
-  reseed();
+  feelInit = M.cwrap('tt_feel_init', 'number', ['number', 'number', 'number', 'number']);
+  feelSend = M.cwrap('tt_feel_send', 'string', ['number', 'number']);
+  feelStep = M.cwrap('tt_feel_step', 'string', ['number']);
+  feelInit(feelSeed, lossPct, LINK.delay, LINK.jitter);
+  ready = true;
+  $('led-label').textContent = 'engine live · wasm';
+  $('hint').textContent = 'move your cursor in here (or use arrow keys)';
+  race();
 });
 
-function reseed() {
-  seed = 1 + Math.floor(Math.random() * 999999);
-  $('seed-label').textContent = 'seed ' + seed;
-}
-$('reseed').addEventListener('click', () => { reseed(); race(); });
+// ---------- 01 FEEL IT ----------
+const field = $('field');
+const ctx = field.getContext('2d');
+const hint = $('hint');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-for (const [id, unit] of [['loss', '%'], ['delay', 'ms'], ['jitter', 'ms'], ['count', '']]) {
-  $(id).addEventListener('input', () => { $(id + '-val').textContent = $(id).value + unit; });
+let target = null, lastSample = 0, lastFrame = 0, lastUser = -1e9;
+const SAMPLE_MS = 25;
+const chans = [
+  { fill: true,  color: OX,  pos: null, trail: [], lastWall: null, wall: {}, lagEl: $('lag-g'), retxEl: $('retx-a') },
+  { fill: false, color: SUB, pos: null, trail: [], lastWall: null, wall: {}, lagEl: $('lag-a'), retxEl: $('retx-b') },
+];
+
+function resetFeel() {
+  if (!ready) return;
+  feelInit(feelSeed, lossPct, LINK.delay, LINK.jitter);
+  for (const ch of chans) {
+    ch.pos = null; ch.trail = []; ch.lastWall = null; ch.wall = {};
+    ch.lagEl.textContent = '–'; ch.retxEl.textContent = '0';
+  }
 }
 
+$('loss').addEventListener('input', () => {
+  lossPct = +$('loss').value;
+  $('loss-val').textContent = lossPct + '%';
+});
+$('loss').addEventListener('change', resetFeel);
+
+function fieldSize() {
+  const r = field.getBoundingClientRect();
+  if (field.width !== Math.round(r.width * devicePixelRatio)) {
+    field.width = Math.round(r.width * devicePixelRatio);
+    field.height = Math.round(r.height * devicePixelRatio);
+  }
+}
+function pointerTo(e) {
+  const r = field.getBoundingClientRect();
+  target = { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  lastUser = performance.now();
+  if (ready) hint.style.opacity = 0;
+}
+field.addEventListener('pointermove', pointerTo);
+field.addEventListener('pointerdown', pointerTo);
+field.addEventListener('keydown', (e) => {
+  const step = 0.04;
+  if (!target) target = { x: .5, y: .5 };
+  if (e.key === 'ArrowLeft') target.x -= step; else if (e.key === 'ArrowRight') target.x += step;
+  else if (e.key === 'ArrowUp') target.y -= step; else if (e.key === 'ArrowDown') target.y += step;
+  else return;
+  target.x = Math.max(0, Math.min(1, target.x)); target.y = Math.max(0, Math.min(1, target.y));
+  lastUser = performance.now();
+  if (ready) hint.style.opacity = 0;
+  e.preventDefault();
+});
+
+function applyStep(ch, res, now) {
+  for (const [seq, x, y] of res.msgs) {
+    ch.pos = { x, y };
+    if (ch.wall[seq] !== undefined) { ch.lastWall = ch.wall[seq]; delete ch.wall[seq]; }
+    ch.trail.push({ x, y, t: now });
+  }
+  ch.retxEl.textContent = fmt(res.retx);
+}
+
+function tick(now) {
+  fieldSize();
+  if (ready && !reduced && now - lastUser > 2500) {
+    const t = now / 1000;
+    target = { x: .5 + .38 * Math.sin(t * .9), y: .5 + .3 * Math.sin(t * 1.5 + 1.2) };
+    hint.textContent = 'autopilot — move your cursor to take over';
+    hint.style.opacity = .85;
+  }
+  if (ready && target && now - lastSample >= SAMPLE_MS) {
+    lastSample = now;
+    const s = JSON.parse(feelSend(target.x, target.y));
+    if (s.a >= 0) chans[0].wall[s.a] = now;
+    if (s.b >= 0) chans[1].wall[s.b] = now;
+  }
+  if (ready) {
+    const dt = Math.round(Math.min(120, lastFrame ? now - lastFrame : 0));
+    lastFrame = now;
+    if (dt > 0) {
+      const r = JSON.parse(feelStep(dt));
+      applyStep(chans[0], r.a, now);
+      applyStep(chans[1], r.b, now);
+    }
+    for (const ch of chans) {
+      ch.trail = ch.trail.filter((p) => now - p.t < 900);
+      if (ch.lastWall !== null) ch.lagEl.textContent = Math.round(now - ch.lastWall) + 'ms';
+    }
+  }
+
+  // ---- draw ----
+  const W = field.width, H = field.height, s = devicePixelRatio;
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = HAIR; ctx.lineWidth = 1; ctx.globalAlpha = .55;
+  const cell = 56 * s;
+  for (let gx = cell; gx < W; gx += cell) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke(); }
+  for (let gy = cell; gy < H; gy += cell) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+
+  if (target) {
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.2 * s;
+    const tx = target.x * W, ty = target.y * H, rr = 9 * s;
+    ctx.beginPath(); ctx.moveTo(tx - rr, ty); ctx.lineTo(tx + rr, ty);
+    ctx.moveTo(tx, ty - rr); ctx.lineTo(tx, ty + rr); ctx.stroke();
+  }
+  for (const ch of chans) {
+    if (!reduced && ch.trail.length > 1) {
+      ctx.strokeStyle = ch.color; ctx.globalAlpha = .3; ctx.lineWidth = 1.6 * s;
+      ctx.setLineDash(ch.fill ? [] : [5 * s, 5 * s]);
+      ctx.beginPath();
+      ch.trail.forEach((p, i) => { const x = p.x * W, y = p.y * H; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    if (ch.pos) {
+      const x = ch.pos.x * W, y = ch.pos.y * H, r = 7 * s;
+      ctx.lineWidth = 2 * s;
+      if (ch.fill) { ctx.fillStyle = ch.color; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
+      else { ctx.strokeStyle = ch.color; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke(); }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// ---------- 02 MEASURE IT ----------
 function doRun(rtoFloor) {
-  return JSON.parse(run(
-    seed, +$('loss').value, +$('delay').value, +$('jitter').value,
-    64, rtoFloor, +$('count').value, 32));
+  return JSON.parse(run(raceSeed, lossPct, LINK.delay, LINK.jitter, 64, rtoFloor, 500, 32));
 }
 
-function tilesHtml(r) {
-  const t = (l, v) => `<div class="tile"><span class="t-label">${l}</span><span class="t-value">${v}</span></div>`;
-  return t('p50 latency', fmt(r.lat_p50) + '<small>ms</small>')
-       + t('p99 latency', fmt(r.lat_p99) + '<small>ms</small>')
-       + t('worst', fmt(r.lat_max) + '<small>ms</small>')
-       + t('retransmits', fmt(r.retransmits))
-       + t('done in', fmt(r.virtual_ms) + '<small>ms</small>');
+function drawRace(a, b) {
+  const W = 840, H = 340, PL = 52, PR = 70, PT = 18, PB = 40;
+  const maxX = Math.max(a.virtual_ms, b.virtual_ms);
+  const maxY = Math.max(a.delivered, b.delivered, 1);
+  const x = (ms) => PL + (W - PL - PR) * ms / maxX;
+  const y = (d) => H - PB - (H - PT - PB) * d / maxY;
+  const line = (tl) => tl.map(([ms, d], i) => (i ? 'L' : 'M') + x(ms).toFixed(1) + ' ' + y(d).toFixed(1)).join(' ');
+  let g = '';
+  for (let i = 0; i <= 4; i++) {
+    const yy = PT + (H - PT - PB) * i / 4;
+    g += `<line x1="${PL}" y1="${yy}" x2="${W - PR}" y2="${yy}" stroke="${HAIR}" stroke-width="1"/>`;
+    g += `<text x="${PL - 8}" y="${yy + 4}" text-anchor="end" fill="${FAINT}" font-size="12" font-family="Times New Roman, serif">${fmt(maxY * (4 - i) / 4)}</text>`;
+  }
+  for (let i = 0; i <= 4; i++) {
+    g += `<text x="${PL + (W - PL - PR) * i / 4}" y="${H - 12}" text-anchor="middle" fill="${FAINT}" font-size="12" font-family="Times New Roman, serif">${fmt(maxX * i / 4)}ms</text>`;
+  }
+  g += `<path d="${line(b.timeline)}" fill="none" stroke="${SUB}" stroke-width="2" stroke-dasharray="6 5"/>`;
+  g += `<path d="${line(a.timeline)}" fill="none" stroke="${OX}" stroke-width="2.5"/>`;
+  const eA = a.timeline[a.timeline.length - 1] || [0, 0], eB = b.timeline[b.timeline.length - 1] || [0, 0];
+  g += `<text x="${x(eA[0]) + 6}" y="${y(eA[1]) + 4}" fill="${OX}" font-size="13" font-style="italic" font-family="Times New Roman, serif">25ms</text>`;
+  g += `<text x="${x(eB[0]) + 6}" y="${y(eB[1]) + 4}" fill="${SUB}" font-size="13" font-style="italic" font-family="Times New Roman, serif">200ms</text>`;
+  $('race').innerHTML = g;
+}
+
+function row(label, a, b) {
+  const r = b / Math.max(1, a);
+  return `<tr><td>${label}</td><td class="ox">${fmt(a)}</td><td>${fmt(b)}</td><td class="ratio">${r.toFixed(1)}</td></tr>`;
 }
 
 function race() {
-  if (!run) return;
-  const a = doRun(25);   // taut's floor
-  const b = doRun(200);  // TCP-like floor
-  lastRace = { a, b };
-
-  $('tiles-a').innerHTML = tilesHtml(a);
-  $('tiles-b').innerHTML = tilesHtml(b);
-  drawChart(a, b);
-
-  const n = +$('count').value, loss = $('loss').value;
+  if (!ready) return;
+  const a = doRun(25);
+  const b = doRun(200);
+  drawRace(a, b);
+  $('seed-label').textContent = `seed ${raceSeed} · loss ${lossPct}% · delay ${LINK.delay}ms ± ${LINK.jitter}`;
+  $('tbody').innerHTML =
+    row('median latency', a.lat_p50, b.lat_p50) + row('p99 latency', a.lat_p99, b.lat_p99) +
+    row('worst message', a.lat_max, b.lat_max) + row('all 500 done in', a.virtual_ms, b.virtual_ms);
   const v = $('verdict');
   if (a.timed_out || b.timed_out || !a.ordered || !b.ordered) {
     v.className = 'verdict bad';
-    v.textContent = 'something did not complete: this would be a protocol bug, please open an issue with seed ' + seed;
+    v.textContent = `A run did not complete in order: that would be a protocol bug. Please open an issue with seed ${raceSeed}.`;
     return;
   }
-  const speedup = (b.lat_max / Math.max(1, a.lat_max)).toFixed(1);
-  v.className = 'verdict ok';
-  v.textContent =
-    `all ${fmt(n)} messages delivered exactly once, in order, on both runs, at ${loss}% loss (seed ${seed}).\n` +
-    `same code, one knob: the 25ms floor finished its worst message ${speedup}x sooner than the 200ms floor ` +
-    `(${fmt(a.lat_max)}ms vs ${fmt(b.lat_max)}ms). that gap is dead air the OS default would have spent waiting.`;
+  v.className = 'verdict';
+  const ratio = b.lat_max / Math.max(1, a.lat_max);
+  if (ratio >= 1.15) {
+    v.innerHTML =
+      `All 500 delivered exactly once, in order, on both runs. The 25ms floor finished its worst ` +
+      `message <b>${ratio.toFixed(1)}&times; sooner</b>; the gap is dead air the OS default ` +
+      `spends waiting. Change the loss, or roll a new seed.`;
+  } else if (ratio > 0.87) {
+    v.innerHTML =
+      `All 500 delivered exactly once, in order, on both runs. This seed was a wash: few losses ` +
+      `needed a timeout to repair, so the floor barely mattered. Roll a new seed.`;
+  } else {
+    v.innerHTML =
+      `All 500 delivered exactly once, in order, on both runs, and <b>this seed went against the ` +
+      `25ms floor</b>: a streak of consecutive losses (acks cross the same lossy link) hit its run ` +
+      `and exponential backoff compounded the damage, while the 200ms run drew luckier weather. ` +
+      `That tail is real, so it gets shown. Roll a few seeds and watch the distribution.`;
+  }
 }
-$('race').addEventListener('click', race);
-
-// ---------- chart ----------
-
-const W = 720, H = 300, PL = 46, PR = 84, PT = 14, PB = 34;
-
-function drawChart(a, b) {
-  const maxX = Math.max(a.virtual_ms, b.virtual_ms);
-  const maxY = Math.max(a.delivered, b.delivered);
-  const x = (ms) => PL + (W - PL - PR) * ms / maxX;
-  const y = (d) => H - PB - (H - PT - PB) * d / maxY;
-
-  const line = (tl) => tl.map(([ms, d], i) => (i ? 'L' : 'M') + x(ms).toFixed(1) + ' ' + y(d).toFixed(1)).join(' ');
-
-  let g = '';
-  // grid: 4 horizontal lines + labels
-  for (let i = 0; i <= 4; i++) {
-    const yy = PT + (H - PT - PB) * i / 4;
-    const val = Math.round(maxY * (4 - i) / 4);
-    g += `<line class="grid" x1="${PL}" y1="${yy}" x2="${W - PR}" y2="${yy}"/>`;
-    g += `<text class="axis-label" x="${PL - 8}" y="${yy + 4}" text-anchor="end">${fmt(val)}</text>`;
-  }
-  for (let i = 0; i <= 4; i++) {
-    const xx = PL + (W - PL - PR) * i / 4;
-    g += `<text class="axis-label" x="${xx}" y="${H - 12}" text-anchor="middle">${fmt(Math.round(maxX * i / 4))}ms</text>`;
-  }
-  g += `<path class="series-b" d="${line(b.timeline)}"/>`;
-  g += `<path class="series-a" d="${line(a.timeline)}"/>`;
-  // direct labels at line ends
-  const endA = a.timeline[a.timeline.length - 1] || [0, 0];
-  const endB = b.timeline[b.timeline.length - 1] || [0, 0];
-  g += `<text class="end-label" fill="var(--copper-bright)" x="${x(endA[0]) + 6}" y="${y(endA[1]) + 4}">25ms</text>`;
-  g += `<text class="end-label" fill="var(--steel)" x="${x(endB[0]) + 6}" y="${y(endB[1]) + 4}">200ms</text>`;
-  g += `<g id="hover-layer"></g>`;
-  $('chart').innerHTML = g;
-}
-
-// hover crosshair + tooltip
-$('chart').addEventListener('mousemove', (ev) => {
-  if (!lastRace) return;
-  const svg = $('chart');
-  const rect = svg.getBoundingClientRect();
-  const px = (ev.clientX - rect.left) * W / rect.width;
-  const maxX = Math.max(lastRace.a.virtual_ms, lastRace.b.virtual_ms);
-  const ms = Math.max(0, Math.min(maxX, (px - PL) * maxX / (W - PL - PR)));
-
-  const at = (tl) => {
-    let best = tl[0] || [0, 0];
-    for (const p of tl) { if (p[0] <= ms) best = p; else break; }
-    return best[1];
-  };
-  const da = at(lastRace.a.timeline), db = at(lastRace.b.timeline);
-
-  const layer = document.getElementById('hover-layer');
-  if (layer) {
-    const xx = PL + (W - PL - PR) * ms / maxX;
-    layer.innerHTML = `<line class="crosshair" x1="${xx}" y1="${PT}" x2="${xx}" y2="${H - PB}"/>`;
-  }
-  const tip = $('tooltip');
-  tip.hidden = false;
-  tip.textContent = `t=${fmt(Math.round(ms))}ms\n25ms floor: ${fmt(da)}\n200ms floor: ${fmt(db)}`;
-  tip.style.left = Math.min(ev.clientX - rect.left + 14, rect.width - 150) + 'px';
-  tip.style.top = (ev.clientY - rect.top + 10) + 'px';
-});
-$('chart').addEventListener('mouseleave', () => {
-  $('tooltip').hidden = true;
-  const layer = document.getElementById('hover-layer');
-  if (layer) layer.innerHTML = '';
-});
+$('run').addEventListener('click', race);
+$('reseed').addEventListener('click', () => { raceSeed = 1 + Math.floor(Math.random() * 999999); race(); });
