@@ -1,12 +1,12 @@
 # DECISIONS
 
 One entry per design decision point. Per CLAUDE.md, **Laksh writes the rationale in his
-own words** — the "why" is the ownership, and it's what interviews probe. The decision
+own words** - the "why" is the ownership, and it's what interviews probe. The decision
 itself is recorded factually; fill each `Rationale:` line before the module's gate.
 
 ---
 
-## Week 1 S1 — Dev environment & codec wire format
+## Week 1 S1 - Dev environment & codec wire format
 
 ### D1. Dev environment: **Lima** (Ubuntu VM on the Mac)
 - Chosen over Docker/OrbStack container.
@@ -34,7 +34,7 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 
 ---
 
-## Week 1 S2 — crc32c + codec implementation
+## Week 1 S2 - crc32c + codec implementation
 
 ### D6. CRC32C software algorithm: **table-driven (Sarwate, 256-entry)**
 - Over bitwise (8× slower) and slicing-by-8 (faster, more tables/complexity).
@@ -69,7 +69,7 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 
 ---
 
-## Week 1 S3 — event loop skeleton + transport + fuzzer
+## Week 1 S3 - event loop skeleton + transport + fuzzer
 
 ### D13. epoll: **level-triggered** (not edge-triggered)
 - LT re-signals while data remains (can't lose a wakeup); ET signals once per transition
@@ -91,20 +91,20 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 
 ---
 
-## feat/core — SACK + reliability classes + flow control
+## feat/core - SACK + reliability classes + flow control
 
 ### D17. Fast retransmit trigger: **≥ 3 SACKed slots above an un-SACKed slot**
 - The Reno 3-dup-ack heuristic expressed on the SACK bitmap. SACKing a slot also cancels its
   RTO (a received packet is never resent) and takes its RTT sample early.
-- Alternatives: RTO-only recovery (slow — the whole reason goodput collapses under loss);
-  retransmit on the first gap seen (too eager — reorder would trigger spurious resends).
+- Alternatives: RTO-only recovery (slow - the whole reason goodput collapses under loss);
+  retransmit on the first gap seen (too eager - reorder would trigger spurious resends).
 - Rationale (Laksh): _______________________________________________
 
 ### D18. Class dispatch on the rx path: **shared reliable seq space, per-class delivery**
 - Class 1 delivers on arrival and leaves a payload-less `reasm_` marker (for cum_ack/SACK/
   dedup); class 2 buffers for in-order delivery; class 0 uses a separate 64-seq anti-replay
   dedup window and is never acked/retransmitted (D2).
-- Alternative: per-class sequence spaces (rejected in D2 — triples bookkeeping).
+- Alternative: per-class sequence spaces (rejected in D2 - triples bookkeeping).
 - Rationale (Laksh): _______________________________________________
 
 ### D19. `adv_window` counts **only the app-delivery queue**, not out-of-order reassembly
@@ -125,7 +125,7 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 
 ---
 
-## Week 4 — SWIM membership (§5.9)
+## Week 4 - SWIM membership (§5.9)
 
 ### D21. Gossip wire location: **carried in the packet PAYLOAD** (not the §5.2 header piggyback)
 - Uses `PacketType::{Ping,PingReq,Pong,Join}` + `Class::Unreliable`, codec untouched. Lane
@@ -136,13 +136,13 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 ### D22. State merge: **incarnation precedence** (Suspect beats Alive at equal inc; Dead terminal)
 - Single `apply_rumor()` entry point for wire gossip, own conclusions, and tests. Only the
   accused refutes (incarnation+1). Alternative (bare timestamp/last-writer) rejected: it can't
-  distinguish a stale suspicion from a fresh one — the exact failure incarnation numbers fix.
+  distinguish a stale suspicion from a fresh one - the exact failure incarnation numbers fix.
 - Rationale (Laksh): _______________________________________________
 
 ### D23. Dissemination: **one rumor per subject, least-transmitted-first, budget ceil(3·ln N)**
 - Overwrite-on-supersede bounds the buffer to N and auto-dedups. Budget=5 at N=5.
 - **Deviation:** unresolved Suspect rumors are re-injected each period (anti-entropy) so a
-  partition-heal reconverges — otherwise the budget is spent broadcasting into the partition and
+  partition-heal reconverges - otherwise the budget is spent broadcasting into the partition and
   the accused never hears the suspicion to refute. (docs/DESIGN-swim.md.)
 - Rationale (Laksh): _______________________________________________
 
@@ -162,18 +162,18 @@ itself is recorded factually; fill each `Rationale:` line before the module's ga
 - `Alive@k+1` now resurrects `Dead@k` (memberlist/Lifeguard ordering; only the subject mints
   higher incarnations, so it is first-hand proof of life). JOIN replies name the joiner as
   subject so only requests are answered. No wire-format change. (docs/DESIGN-swim.md "Rejoin".)
-- Rationale (Laksh): approved 2026-07-27 in the tautq protocol brief (§0) — chaos scenarios
+- Rationale (Laksh): approved 2026-07-27 in the tautq protocol brief (§0) - chaos scenarios
   (a) SIGKILL+restart and (d) stale-log restart require rejoin.
 
 ### D27. (v0.1.2) SWIM post-Dead refutation channel: **dead-probing + Dead-rumor re-send on contact**
 - Found LIVE by tautq's chaos partition scenario: a partition held past suspicion_timeout
   leaves both sides holding Dead verdicts; base SWIM then never exchanges another packet
   across the healed link (Dead members are never probed) and the accusation's gossip budget
-  is spent, so the accused never refutes — a permanent split. Rejoin (D26) doesn't apply:
+  is spent, so the accused never refutes - a permanent split. Rejoin (D26) doesn't apply:
   nothing restarted.
 - One direct PING per period to a random Dead member, carrying its own Dead rumor
   (re-queued, fresh budget); a live accused refutes at inc+1 and resurrects under the D26
   ordering. Any packet FROM a Dead-believed member also re-queues its Dead rumor.
   (docs/DESIGN-swim.md "Post-Dead refutation channel".)
-- Rationale (Laksh): part of the standing tautq mandate ("finish all modules") — the chaos
+- Rationale (Laksh): part of the standing tautq mandate ("finish all modules") - the chaos
   suite's §5 assertions define correctness; this was a straight bug against them.

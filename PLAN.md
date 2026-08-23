@@ -1,11 +1,11 @@
-# taut — reliable-UDP transport + SWIM membership, in C++
+# taut - reliable-UDP transport + SWIM membership, in C++
 
 > **One-liner:** a purpose-built reliable transport for small-message meshes on lossy
-> networks — sliding-window ARQ with SACK, adaptive RTO, per-message reliability
-> classes, and SWIM failure detection — fuzz-hardened, fault-injected with netem,
+> networks - sliding-window ARQ with SACK, adaptive RTO, per-message reliability
+> classes, and SWIM failure detection - fuzz-hardened, fault-injected with netem,
 > and benchmarked honestly against kernel TCP and ENet.
 >
-> (The name is a placeholder — a taut line over a lossy link. Rename freely; nothing
+> (The name is a placeholder - a taut line over a lossy link. Rename freely; nothing
 > below depends on it.)
 
 **Timeline:** 5 weeks at 10–12 h/week (~3 sessions of 3–4 h each).
@@ -31,37 +31,37 @@ This project was chosen 2026-07-20 after a full audit of Laksh's GitHub found:
 **Purpose (in priority order):**
 1. A resume project for Google SWE/SRE intern applications strong enough to displace
    the Winnow bullet (and to let Vigil be reframed as a team project).
-2. Something Laksh can defend **cold** in a systems interview — every design decision
+2. Something Laksh can defend **cold** in a systems interview - every design decision
    made by him, and every line understood deeply enough to re-derive at a whiteboard.
 
 **Explicit non-goals:** users, revenue, production readiness, cross-platform support,
-encryption, congestion control (deliberately out of scope — see §5.8), kernel bypass.
+encryption, congestion control (deliberately out of scope - see §5.8), kernel bypass.
 
 **The thesis (what makes this more than a reimplementation):** general-purpose
 transports carry obligations we can drop. TCP must deliver bytes strictly in order
 (head-of-line blocking), must be fair (congestion control), and won't retransmit
-faster than a ~200 ms minimum RTO. We serve one niche — small telemetry messages on
-lossy links — and trade bandwidth for tail latency. Expected result: **much lower p99
+faster than a ~200 ms minimum RTO. We serve one niche - small telemetry messages on
+lossy links - and trade bandwidth for tail latency. Expected result: **much lower p99
 message latency than TCP at 5–10 % loss, at a measured cost in bandwidth overhead and
 clean-link throughput.** Both sides of that trade get plotted. A graph where we win at
 everything is a bug.
 
 ---
 
-## 2. Division of labor — AI-IMPLEMENTED, HUMAN-DIRECTED (the most important section)
+## 2. Division of labor - AI-IMPLEMENTED, HUMAN-DIRECTED (the most important section)
 
 Chosen model (Laksh's explicit decision, 2026-07-20): **Claude writes the code;
 Laksh directs the design and must pass comprehension gates.** Rationale: he learns
 better from worked implementations plus briefings than from typing under deadline.
 
-The risk this model creates is hollowness — an impressive repo whose owner can't
+The risk this model creates is hollowness - an impressive repo whose owner can't
 survive follow-up questions, which is exactly the failure the original audit found in
 his portfolio (flagship bullets describing code teammates wrote). The compensation is
 that **every module ships through a mandatory active-learning loop, and nothing
 advances past a failed gate.** The gates are the product. Skipping them to "move
 faster" produces a repo worth zero for both stated goals.
 
-**The per-module loop (Claude enforces the order; applies to every CORE module —
+**The per-module loop (Claude enforces the order; applies to every CORE module  - 
 codec/CRC32C, window/ARQ/SACK, RTO+timers, rx/classes, flow control, SWIM, epoll loop):**
 
 1. **Design brief (before any code).** Claude presents the problem, 2–3 candidate
@@ -69,16 +69,16 @@ codec/CRC32C, window/ARQ/SACK, RTO+timers, rx/classes, flow control, SWIM, epoll
    module's decision points (window sizing, SACK bitmap vs ranges, level- vs
    edge-triggered epoll, per-class vs single seq space, timer heap vs wheel, …) and
    gives a one-sentence why. Recorded in `docs/DECISIONS.md`. Design ownership is
-   real ownership — interviews probe decisions far more than syntax.
+   real ownership - interviews probe decisions far more than syntax.
 2. **Implementation.** Claude writes the module and its tests in small, reviewable
-   commits — never the whole subsystem in one dump.
+   commits - never the whole subsystem in one dump.
 3. **Walkthrough brief.** Guided tour: the data structures, the invariants, the 2–3
    subtlest lines, and "what breaks if we change X." Laksh asks until nothing is fuzzy.
-4. **Comprehension gate — must pass before the next module starts:**
+4. **Comprehension gate - must pass before the next module starts:**
    a. *File-blind explain-back:* Laksh explains the module's state machine and edge
       cases from memory, no screen.
    b. *Prediction:* given a scenario ("acks for 1-3 and 6-8 arrive; packet 4's timer
-      fires 10 ms later — walk the ring"), Laksh predicts behavior **before** the test
+      fires 10 ms later - walk the ring"), Laksh predicts behavior **before** the test
       runs; then they run it.
    c. *Hand-trace:* one worked trace on paper (e.g., SRTT/RTTVAR/RTO across five
       samples including one retransmit).
@@ -88,7 +88,7 @@ codec/CRC32C, window/ARQ/SACK, RTO+timers, rx/classes, flow control, SWIM, epoll
 5. Only then: next module.
 
 **Laksh still personally produces (cheap, disproportionate value):**
-- The golden test vectors, computed by hand on paper (§6.1) — the wire format becomes
+- The golden test vectors, computed by hand on paper (§6.1) - the wire format becomes
   his in an hour.
 - Every `docs/DECISIONS.md` entry and the README/BENCHMARKS analysis prose, in his
   own words.
@@ -96,7 +96,7 @@ codec/CRC32C, window/ARQ/SACK, RTO+timers, rx/classes, flow control, SWIM, epoll
 
 **Git honesty:** real incremental commits (no end-of-project squash); Claude-authored
 commits keep the standard `Co-Authored-By: Claude <noreply@anthropic.com>` trailer.
-The history never pretends to be hand-typed — what the resume says is Laksh's call,
+The history never pretends to be hand-typed - what the resume says is Laksh's call,
 but the repo manufactures no false evidence, and what makes any claim survivable is
 the gates and drills, not the git log.
 
@@ -114,7 +114,7 @@ the gates and drills, not the git log.
 5. netem soak: scripted, invariant-checked (§6.4), green 20×.
 6. Benchmark report (`docs/BENCHMARKS.md` + README graphs): p50/p99/p999 message
    latency and goodput vs **kernel TCP (TCP_NODELAY)** and **ENet**, across loss
-   0/1/5/10/20 % — including the plots where taut loses (§7).
+   0/1/5/10/20 % - including the plots where taut loses (§7).
 7. README written for a skimming interviewer: thesis, architecture diagram, graphs,
    limitations section that names what was deliberately not built.
 8. CI (GitHub Actions): build matrix {Debug+ASan/UBSan, Release}, clang-tidy,
@@ -160,11 +160,11 @@ taut/
 ## 5. Design specification
 
 Everything in §5 is a **reference design**: strong defaults chosen so week 1 isn't
-spent bikeshedding. Laksh may deviate — but every deviation gets a sentence in the
+spent bikeshedding. Laksh may deviate - but every deviation gets a sentence in the
 relevant `docs/DESIGN-*.md` saying why. "I changed the reference design because X"
 is interview material; silent drift is not.
 
-### 5.1 Public API (sketch — finalize in week 1)
+### 5.1 Public API (sketch - finalize in week 1)
 
 ```cpp
 taut::Config cfg;
@@ -211,7 +211,7 @@ offset size field
 [+]    ...  payload        (payload_len bytes)
 ```
 
-Decisions embedded here (know why for each — they get asked):
+Decisions embedded here (know why for each - they get asked):
 - **Single seq space per peer-pair**, ordering enforced only for class 2 at the
   receiver. Simpler than per-class spaces; document the duplicate-detection
   consequence for class 0.
@@ -221,7 +221,7 @@ Decisions embedded here (know why for each — they get asked):
   software fallback yourself, verify against known vectors, then enable the HW path.
 - **Acks ride on everything**: every outgoing packet carries current cum_ack/window;
   pure ACK packets are sent when there's no reverse traffic (delayed up to 10 ms or
-  every 2nd packet, whichever first — classic delayed-ack shape).
+  every 2nd packet, whichever first - classic delayed-ack shape).
 - Handshake: minimal 2-way JOIN/JOIN-ACK to exchange initial seq + config. Do not
   build TIME_WAIT machinery; document the restart-ambiguity limitation honestly.
 
@@ -257,7 +257,7 @@ after:         RTTVAR = 3/4·RTTVAR + 1/4·|SRTT − R'|
                SRTT   = 7/8·SRTT   + 1/8·R'
 RTO = SRTT + max(G, 4·RTTVAR)      clamped to [rto_floor, 2 s]
 ```
-- **rto_floor default 25 ms** — deliberate deviation from TCP's ~200 ms Linux minimum.
+- **rto_floor default 25 ms** - deliberate deviation from TCP's ~200 ms Linux minimum.
   This single constant is a large part of why taut beats TCP's tail latency under
   loss; be able to explain why TCP *can't* safely do this on the open internet
   (spurious retransmit storms, fairness) and why a closed mesh can.
@@ -268,16 +268,16 @@ RTO = SRTT + max(G, 4·RTTVAR)      clamped to [rto_floor, 2 s]
 - `adv_window` = free slots in the receiver's reassembly/delivery buffer.
 - Zero-window: sender stops; a **PROBE_WINDOW** packet goes out on a persist timer
   (start 100 ms, ×2 backoff, cap 1 s) so the window-reopening ack being lost cannot
-  deadlock the connection. (Commitment-test Q3 — you'll implement your own answer.)
+  deadlock the connection. (Commitment-test Q3 - you'll implement your own answer.)
 
 ### 5.7 Event loop & threading
 
-- **One thread. No locks in v1.** `epoll_wait` (level-triggered first — simpler to
+- **One thread. No locks in v1.** `epoll_wait` (level-triggered first - simpler to
   reason about; document the edge-triggered upgrade as future work) over: the UDP
   socket, a `timerfd` armed to the timer-heap's min deadline, and an `eventfd` for
   cross-thread sends if a demo needs one.
 - Timer store: **hand-built binary min-heap** keyed by deadline (lazy deletion via
-  generation counters). A timer wheel is the classic follow-up question — know the
+  generation counters). A timer wheel is the classic follow-up question - know the
   tradeoff, don't build it.
 - Per-tick order: drain socket → process acks/data → fire due timers → flush pending
   acks → re-arm timerfd.
@@ -299,7 +299,7 @@ Per the SWIM paper (Das, Gupta, Motivala, 2002):
   **piggybacking** (§5.2 flags.bit1) with a per-update budget of ~3·log(N) sends.
 - **Incarnation numbers**: only the accused node can refute suspicion, by re-announcing
   itself with incarnation+1. This is what prevents a flapping node from being killed
-  by stale rumors — and it's what pylon's naive 5 s reaper got wrong.
+  by stale rumors - and it's what pylon's naive 5 s reaper got wrong.
 - Failure-detection demo metric: time-to-detect and time-to-reconverge after an
   `iptables` partition heals, at N = 5 nodes.
 
@@ -311,18 +311,18 @@ Per the SWIM paper (Das, Gupta, Motivala, 2002):
 Every CORE module gets plain unit tests as it's built. The codec additionally gets
 **golden vectors**: hand-computed byte arrays committed in `tests/golden/` (encode →
 exact bytes; decode → exact struct; bit-flip → CRC reject). Write the first vectors
-by hand on paper — that exercise is where the format becomes yours.
+by hand on paper - that exercise is where the format becomes yours.
 
 ### 6.2 Fuzzing (libFuzzer + ASan/UBSan)
 - `fuzz_decode`: raw bytes → decoder. Must never crash/overflow/UB; malformed input
   returns an error. Trick: the CRC check rejects most random input before it reaches
-  interesting code — add a build flag where the fuzzer computes/patches a valid CRC
+  interesting code - add a build flag where the fuzzer computes/patches a valid CRC
   (or a keyed-CRC bypass) so coverage reaches the parser guts. Mention this in the
   README; it's a sophisticated touch.
 - `fuzz_session`: fuzzer bytes interpreted as a *script* of events (deliver packet /
   advance time / app-send) driven into a connection pair over the sim transport.
   Asserts internal invariants (§6.4) after every step. This is protocol-state fuzzing,
-  not just parser fuzzing — rare in student projects, cheap to build on top of §6.3.
+  not just parser fuzzing - rare in student projects, cheap to build on top of §6.3.
 - Budget: ≥ 1 CPU-hour each locally; 60 s smoke in CI; corpus committed.
 
 ### 6.3 Deterministic simulation harness
@@ -334,7 +334,7 @@ partition windows). Protocol tests run on SimNet:
 - Scenario tests: "10 MB at 20 % loss completes", "partition for 30 s, heal,
   membership reconverges < X s", "receiver stalls 5 s, no deadlock, no overflow".
 This harness is *why* the heisenbug failure mode that kills most transport projects
-won't kill this one — and it's a legitimately impressive artifact of its own.
+won't kill this one - and it's a legitimately impressive artifact of its own.
 
 ### 6.4 Invariants (asserted in sim, fuzz, and soak)
 1. Class 1/2: every message sent is delivered exactly once (no loss, no dup).
@@ -371,7 +371,7 @@ loss ∈ {0,1,5,10,20} %. **Gate: 20 consecutive green runs at 5 %.**
 **Workload:** 512 B messages, Poisson arrivals at a configured rate, 60 s runs,
 fixed seeds, ≥ 5 runs per point, medians with min/max whiskers. Raw CSVs committed.
 
-**Baselines — configured fairly or the whole exercise is a strawman:**
+**Baselines - configured fairly or the whole exercise is a strawman:**
 - **Kernel TCP** with `TCP_NODELAY` (never benchmark latency against Nagle),
   length-prefixed message framing, offloads disabled on the veth (above).
 - **ENet** (vendored via CMake FetchContent), reliable channel, same workload.
@@ -379,18 +379,18 @@ fixed seeds, ≥ 5 runs per point, medians with min/max whiskers. Raw CSVs commi
 **Headline experiment:** p99/p999 message latency vs loss rate (0→20 %) at RTT 30 ms,
 three lines: TCP, taut class 2, taut class 1. Expected shape: TCP's tail explodes
 past ~200 ms (RTO_min + head-of-line); taut class 2 bounded near RTT + rto_floor;
-class 1 lowest. **Also published, same page:** the prices paid —
+class 1 lowest. **Also published, same page:** the prices paid  - 
 bandwidth overhead ratio (bytes-on-wire / goodput bytes) vs TCP, and clean-link
 (0 % loss) throughput where TCP and ENet should beat taut. If taut wins everything,
-the benchmark is broken — find the bug in the harness, not the victory lap.
+the benchmark is broken - find the bug in the harness, not the victory lap.
 
-**Report:** `docs/BENCHMARKS.md` — method, exact commands, hardware, plots, and a
+**Report:** `docs/BENCHMARKS.md` - method, exact commands, hardware, plots, and a
 "why we lose where we lose" analysis (that analysis section is worth more in an
 interview than the wins).
 
 ---
 
-## 8. Dev environment (host is macOS — plan for it now)
+## 8. Dev environment (host is macOS - plan for it now)
 
 epoll and netem are Linux-only. **Primary target: Linux; develop inside a VM or
 container on the Mac.** Options, pick one in week 1 session 1:
@@ -410,24 +410,24 @@ CMake ≥ 3.24 + FetchContent (ENet, and GoogleTest or doctest for tests).
 
 ---
 
-## 9. Week-by-week plan (exit criteria are binary — green or not)
+## 9. Week-by-week plan (exit criteria are binary - green or not)
 
 Budget assumption: 3 sessions/week × ~3.5 h. Each week ends with something demoable;
 the project is never in a state where stopping means having nothing.
 
-**[CORE]** markers below now mean: run the full §2 module loop — design brief →
+**[CORE]** markers below now mean: run the full §2 module loop - design brief →
 Laksh's recorded decisions → Claude implements → walkthrough → comprehension gate.
 A failed gate stops the schedule; the schedule never overrides a gate. (AI-implemented
 code is much faster to produce, so the hour budgets shift from typing to gates and
-benchmarks — the calendar stays the same, the depth requirement goes up, not down.)
+benchmarks - the calendar stays the same, the depth requirement goes up, not down.)
 
-### Week 0 — the gate (≤ 2 h, before any code)
+### Week 0 - the gate (≤ 2 h, before any code)
 - Take the commitment test (§12) on paper. **< 3/5 derivable → build the fallback
-  project instead** (§13) — no shame, better artifact for you.
+  project instead** (§13) - no shame, better artifact for you.
 - Read: RFC 6298 (it's 9 pages), the SWIM paper §§1–4, skim KCP's README (their
   latency-vs-bandwidth trade is your thesis stated by someone else), skim ENet docs.
 
-### Week 1 — foundations (codec + fuzz + event loop skeleton)
+### Week 1 - foundations (codec + fuzz + event loop skeleton)
 - S1: repo init, CMake, sanitizer presets, CI skeleton, Lima/Docker env working;
   `docs/DESIGN-codec.md`: finalize the §5.2 layout (your call on every field).
 - S2: **[CORE]** `crc32c` (software impl vs known vectors, then HW path) and
@@ -435,9 +435,9 @@ benchmarks — the calendar stays the same, the depth requirement goes up, not d
 - S3: `fuzz_decode` running (harness may be Claude-built; crashes are yours to fix);
   **[CORE]** epoll loop skeleton + `UdpTransport`; two processes echo datagrams.
 - **Exit:** fuzzer ≥ 1 CPU-hour clean under ASan; echo demo runs under 20 % netem
-  loss (drops fine — no reliability yet); CI green.
+  loss (drops fine - no reliability yet); CI green.
 
-### Week 2 — reliability core ⇒ THE CHECKPOINT
+### Week 2 - reliability core ⇒ THE CHECKPOINT
 - S1: **[CORE]** timer min-heap + send-buffer ring; stop-and-wait ARQ (window=1)
   delivering reliably at 5 % sim loss.
 - S2: **[CORE]** sliding window (64), cumulative acks, RTO per §5.5 with Karn;
@@ -450,7 +450,7 @@ benchmarks — the calendar stays the same, the depth requirement goes up, not d
   "nearly there". The rule exists because "nearly there" is how the 70 %-done corpse
   happens.
 
-### Week 3 — defensibility: SACK, flow control, classes, benchmarks
+### Week 3 - defensibility: SACK, flow control, classes, benchmarks
 - S1: **[CORE]** SACK bitmap + fast retransmit; class 0/1/2 semantics on rx path.
 - S2: **[CORE]** flow control + zero-window probe; sim scenarios: stalled receiver,
   probe-loss deadlock check (invariant 3, 5).
@@ -459,7 +459,7 @@ benchmarks — the calendar stays the same, the depth requirement goes up, not d
 - **Exit:** headline graph exists with all three lines + the two "we lose here"
   plots; `docs/BENCHMARKS.md` drafted; defense drill W3 passed (§10).
 
-### Week 4 — SWIM (cut-first candidate)
+### Week 4 - SWIM (cut-first candidate)
 - S1: **[CORE]** SWIM state machine on SimNet: ping / ping-req(k=3) / suspect /
   incarnation refutation; scenario: partition + heal reconverges.
 - S2: piggyback plumbing + `mesh_node` demo; 5 nodes, live membership table.
@@ -467,14 +467,14 @@ benchmarks — the calendar stays the same, the depth requirement goes up, not d
   times; invariant 6.
 - **Exit:** 5-node demo survives a 30 s partition with correct final membership and
   no false-dead of reachable nodes. *(If week 3 slipped: skip SWIM entirely, spend
-  week 4 finishing week 3 — transport + honest benchmarks is a complete project.)*
+  week 4 finishing week 3 - transport + honest benchmarks is a complete project.)*
 
-### Week 5 — ship it
-- S1: profile (perf/flamegraph in the VM); apply only cheap wins — `recvmmsg`/
+### Week 5 - ship it
+- S1: profile (perf/flamegraph in the VM); apply only cheap wins - `recvmmsg`/
   `sendmmsg` batching is the canonical one; re-run benchmarks if anything changed.
 - S2: README for a 90-second skim: thesis → diagram → 3 graphs → limitations
   (congestion control, security, single-thread) → build/run instructions.
-  Stretch only if ahead: XOR-parity FEC (1 parity per 8 data packets, class 1) —
+  Stretch only if ahead: XOR-parity FEC (1 parity per 8 data packets, class 1)  - 
   recovers losses with zero retransmit RTT; one more curve if built.
 - S3: final defense drill (§10 mock); fill the resume bullet metrics (§11); execute
   the resume-swap checklist (§11); tag v0.1.0.
@@ -485,14 +485,14 @@ benchmarks — the calendar stays the same, the depth requirement goes up, not d
 
 End of each week, in-session, no notes, Laksh answers out loud / in prose. Any miss →
 review before new code. **Under the AI-implemented model (§2), these drills plus the
-per-module gates are the ONLY thing that makes the resume claim defensible — treat a
+per-module gates are the ONLY thing that makes the resume claim defensible - treat a
 failed drill exactly like a build break.** Question banks:
 
-- **W1:** Why CRC32C over checksum/Adler32/xxHash — what does it catch and not catch?
+- **W1:** Why CRC32C over checksum/Adler32/xxHash - what does it catch and not catch?
   Walk your header byte-by-byte; why 1200 B; what breaks at MTU 1280? What did the
   fuzzer actually find (name a real crash you fixed)? Level- vs edge-triggered epoll?
 - **W2:** Derive Jacobson's RTO from "mean + k·deviation". Why is a retransmit's RTT
-  sample ambiguous (Karn)? Your ring's exact contents when acks 1-3,6-8 of 8 arrive —
+  sample ambiguous (Karn)? Your ring's exact contents when acks 1-3,6-8 of 8 arrive  - 
   what retransmits and when? Why does your rto_floor=25 ms beat TCP, and why can't
   TCP do that on the internet?
 - **W3:** Why does goodput collapse superlinearly with cumulative-only acks; what
@@ -500,10 +500,10 @@ failed drill exactly like a build break.** Question banks:
   Zero-window deadlock: walk the persist-timer state machine. Where does taut lose
   to TCP/ENet and mechanically why?
 - **W4:** Why indirect probes (what network condition do they disambiguate)? What do
-  incarnation numbers prevent — give the exact stale-rumor interleaving. What did
+  incarnation numbers prevent - give the exact stale-rumor interleaving. What did
   pylon's 5 s reaper do wrong that suspicion fixes? Detection-time math for T=1 s,
   k=3, N=5.
-- **W5 (mock):** 30 min: "You have a lossy 30 ms link and TCP's p99 is 400 ms — design
+- **W5 (mock):** 30 min: "You have a lossy 30 ms link and TCP's p99 is 400 ms - design
   a fix" (design taut from scratch on a whiteboard), then file-blind walkthroughs:
   Claude names any CORE file, Laksh explains its state and edge cases from memory.
 
@@ -513,24 +513,24 @@ failed drill exactly like a build break.** Question banks:
 
 **Bullet (fill blanks from BENCHMARKS.md, keep one line if possible):**
 > Built **taut**, a reliable-UDP transport library in C++20 for lossy small-message
-> meshes — epoll event loop, sliding-window ARQ with SACK, adaptive RTO
+> meshes - epoll event loop, sliding-window ARQ with SACK, adaptive RTO
 > (Jacobson/Karn), per-message reliability classes, SWIM failure detection;
 > libFuzzer-hardened codec, deterministic network-simulation tests, netem fault
 > injection; **__×** lower p99 latency than kernel TCP at 5 % loss (at **__×**
 > bandwidth overhead), within **__ %** of ENet throughput.
 
-**Interview-honesty note:** if asked how it was built, "AI-assisted implementation —
+**Interview-honesty note:** if asked how it was built, "AI-assisted implementation  - 
 the design decisions, verification strategy, and analysis are mine" is a perfectly
 fine 2026 answer, *provided the §2 gates were genuinely passed*, because the very
 next question will test exactly that.
 
 **Resume-swap checklist (same day as v0.1.0):**
-- [ ] taut in; **Winnow bullet out** (or reworded to "team hackathon — built the
+- [ ] taut in; **Winnow bullet out** (or reworded to "team hackathon - built the
       Next.js demo UI + voice capture").
-- [ ] Vigil reframed: "(hackathon, team of 3) — built deployment pipeline, live
+- [ ] Vigil reframed: "(hackathon, team of 3) - built deployment pipeline, live
       incident SSE UI, sponsor integrations."
 - [ ] Pylon reframed to what's yours: the signature-library-vs-detector evaluation
-      module — or pointed at taut as its successor.
+      module - or pointed at taut as its successor.
 - [ ] agentbench: remove/fix the PyPI + CI badges that point at repos you don't own.
 - [ ] LooseAPI: push the real code or unlink the empty repo.
 - [ ] SitRep bullet: claim your actual surface ("~50 % of the API layer, password
@@ -538,7 +538,7 @@ next question will test exactly that.
 
 ---
 
-## 12. Commitment test (week 0 gate — on paper, no lookups; derivations count)
+## 12. Commitment test (week 0 gate - on paper, no lookups; derivations count)
 
 1. Eight packets in flight, window 8; receiver got 1-3 and 6-8. With cumulative-only
    acks, what does the sender know, what retransmits, and what changes with a SACK
@@ -546,7 +546,7 @@ next question will test exactly that.
 2. Why is an RTT sample from a retransmitted packet poisoned (derive the ambiguity),
    what does using it do to RTO over time, and what's the fix?
 3. Receiver's app stops draining: what stops the sender, where does that signal live
-   in the header, and — when the reopening ack is lost — what prevents deadlock?
+   in the header, and - when the reopening ack is lost - what prevents deadlock?
 4. At 10 % loss your goodput drops far more than 10 % with cumulative acks + RTO-only
    recovery. Walk the stall anatomy; name the single change that recovers most of it.
 5. In SWIM, why probe a suspect through k other members before declaring death; what
@@ -564,7 +564,7 @@ fsync discipline, snapshots, deterministic replay, idempotent side-effect API, a
 kill -9 crash-injection harness proving zero lost/duplicated steps. Same rigor
 pattern as taut (WAL golden tests, crash-loop instead of netem, throughput vs a
 SQLite-backed queue baseline). If activated, write its own PLAN.md on this template.
-Secondary hedge (week-2 miss, want C++ anyway): Bitcask-style KV store — CRC-framed
+Secondary hedge (week-2 miss, want C++ anyway): Bitcask-style KV store - CRC-framed
 append-only log + in-RAM hash index + compaction + kill -9 recovery, benchmarked
 against LevelDB point ops. Two weeks, ships something real.
 
@@ -575,7 +575,7 @@ against LevelDB point ops. Two weeks, ships something real.
 | risk | mitigation |
 |---|---|
 | Briefings become passive scrolling; comprehension stays shallow | §2 gates are blocking: file-blind explain-backs, predictions before test runs, paper hand-traces, planted-bug hunts; a failed gate halts implementation |
-| Claude generates whole subsystems in one dump, gates get batched and rushed | CLAUDE.md forbids bulk generation; one module per loop, small commits, gate before next module — even if Laksh asks to skip ahead |
+| Claude generates whole subsystems in one dump, gates get batched and rushed | CLAUDE.md forbids bulk generation; one module per loop, small commits, gate before next module - even if Laksh asks to skip ahead |
 | Timer/retransmit heisenbugs eat week 3 | SimNet (§6.3) makes every failure a seed; build it before the netem soak, not after |
 | netem on loopback behaves oddly / offloads pollute TCP baseline | veth + netns recipe with tso/gso/gro off (§6.5) |
 | macOS host has no epoll/netem | Lima/Docker Linux env from day one (§8); never develop the loop against kqueue "temporarily" |

@@ -2,7 +2,7 @@
 
 A purpose-built reliable-UDP transport for small-message meshes on lossy networks:
 sliding-window ARQ, adaptive RTO (Jacobson/Karn), per-message reliability classes, and
-SWIM failure detection — fuzz-hardened, fault-injected with `netem`, and benchmarked
+SWIM failure detection - fuzz-hardened, fault-injected with `netem`, and benchmarked
 honestly against kernel TCP (`TCP_NODELAY`) and ENet.
 
 **Live demo:** [lgoyal6.github.io/taut](https://lgoyal6.github.io/taut/), the real
@@ -14,22 +14,22 @@ chase it through the same lossy link, a 25 ms retransmit floor against the kerne
 
 General-purpose transports carry obligations a small-telemetry mesh can drop. TCP must
 deliver bytes strictly in order (head-of-line blocking), must be fair (congestion
-control), and won't retransmit faster than a ~200 ms minimum RTO. taut serves one niche —
-small messages on lossy links — and deliberately trades **bandwidth for tail latency**:
+control), and won't retransmit faster than a ~200 ms minimum RTO. taut serves one niche  - 
+small messages on lossy links - and deliberately trades **bandwidth for tail latency**:
 
 - a **25 ms RTO floor** instead of TCP's ~200 ms Linux minimum (safe on a closed mesh,
-  unsafe on the open internet — that distinction is the whole point);
+  unsafe on the open internet - that distinction is the whole point);
 - **per-message reliability classes**, so a retransmitted packet doesn't have to block the
   messages queued behind it (class 1);
 - a fixed window and no congestion control, on purpose (see *Limitations*).
 
 The expected result is **much lower p99 message latency than TCP at 5–10 % loss, at a
 measured cost in bandwidth overhead and clean-link throughput.** Both sides of that trade
-get plotted — a graph where taut wins at everything would mean the benchmark is broken.
+get plotted - a graph where taut wins at everything would mean the benchmark is broken.
 
 > **Status: v0.1.2.** The library is complete and **powers
 > [tautq](https://github.com/lgoyal6/tautq)**, a 5-node distributed webhook-delivery
-> service whose replication, failover, and membership plane all ride taut — its chaos
+> service whose replication, failover, and membership plane all ride taut - its chaos
 > suite found the v0.1.1 (SWIM rejoin) and v0.1.2 (post-Dead partition-heal) protocol
 > fixes here. See [`docs/PROGRESS.md`](docs/PROGRESS.md) for the full history and
 > per-module design notes in [`docs/`](docs/).
@@ -37,7 +37,7 @@ get plotted — a graph where taut wins at everything would mean the benchmark i
 ## Architecture
 
 Single-threaded by design: one event loop, no locks (§5.7). All protocol logic talks to a
-`UdpTransport` interface, which has two implementations — real sockets, and an in-process
+`UdpTransport` interface, which has two implementations - real sockets, and an in-process
 deterministic simulator (`SimNet`) used by the tests and the protocol-state fuzzer.
 
 ```
@@ -69,7 +69,7 @@ deterministic simulator (`SimNet`) used by the tests and the protocol-state fuzz
    └──────────────────────────────────────────────┘
 ```
 
-**Reliability classes** (§5.3) — the semantic win over TCP:
+**Reliability classes** (§5.3) - the semantic win over TCP:
 
 | class | guarantee | retransmit? | receive behavior |
 |---|---|---|---|
@@ -80,7 +80,7 @@ deterministic simulator (`SimNet`) used by the tests and the protocol-state fuzz
 ## Build
 
 Requires clang 17+, CMake ≥ 3.24, and Ninja. `epoll` and `netem` are Linux-only, so on
-macOS develop inside a Linux VM (Lima — see [PLAN §8](PLAN.md)).
+macOS develop inside a Linux VM (Lima - see [PLAN §8](PLAN.md)).
 
 ```bash
 cmake --preset dev            # Debug + ASan/UBSan
@@ -121,11 +121,11 @@ sudo bench/scripts/soak.sh                   # uses build/release/demo by defaul
 
 ## Testing
 
-- **Unit + golden vectors** — per-module tests; the codec's wire format is pinned to a
+- **Unit + golden vectors** - per-module tests; the codec's wire format is pinned to a
   hand-computed golden byte vector (`ctest --preset dev`).
-- **Deterministic simulation** — protocol tests run over `SimNet` with a seeded RNG and a
+- **Deterministic simulation** - protocol tests run over `SimNet` with a seeded RNG and a
   virtual clock: same seed → byte-identical run, so every failure reproduces (§6.3).
-- **Fuzzing** — `fuzz_decode` drives random bytes into the decoder under ASan/UBSan; a
+- **Fuzzing** - `fuzz_decode` drives random bytes into the decoder under ASan/UBSan; a
   build flag patches a valid CRC so coverage reaches the parser past the checksum guard.
   ```bash
   ./fuzz/run_fuzz.sh decode 60      # smoke; 3600 for a long run
@@ -143,13 +143,13 @@ tail explodes past its ~200 ms `RTO_min` under loss while taut recovers on its 2
 | 5  | 62 ms  | 92 ms  | 409 ms  | 148 ms  |
 | 20 | 281 ms | 278 ms | 3363 ms | 2997 ms |
 
-The price, same fixture: at 0 % loss kernel TCP saturates at ~235 Mbit/s vs taut's ~8.7 —
+The price, same fixture: at 0 % loss kernel TCP saturates at ~235 Mbit/s vs taut's ~8.7  - 
 TCP wins bulk throughput by ~27× (taut sends one datagram at a time, no batching):
 
 ![clean-link throughput](bench/data/throughput_cleanlink.png)
 
 taut's other price is bandwidth: under sustained load its bytes-on-wire climb from ~1.13× to
-~1.27× (at 10 % loss) as it retransmits, vs TCP's ~1.06–1.17× — ~15–20 % more wire bytes for
+~1.27× (at 10 % loss) as it retransmits, vs TCP's ~1.06–1.17× - ~15–20 % more wire bytes for
 the tail-latency win (`bench/data/overhead_vs_loss.png`).
 
 Real baselines (`TCP_NODELAY`, ENet), fixed seeds, raw CSVs committed; full method, tables,
@@ -157,7 +157,7 @@ and the "why we lose where we lose" analysis are in [`docs/BENCHMARKS.md`](docs/
 (In this one-outstanding RR workload class 1 ≈ class 2; class 1's head-of-line-blocking win
 needs a pipelined load with several messages in flight.)
 
-## Limitations (deliberate — see PLAN §1 non-goals)
+## Limitations (deliberate - see PLAN §1 non-goals)
 
 - **No congestion control.** Fixed window, no Reno/CUBIC/BBR. Two taut flows sharing a
   bottleneck would stomp each other and everyone else. This is a closed-mesh transport;
@@ -166,9 +166,9 @@ needs a pipelined load with several messages in flight.)
   keyed-CRC flag is integrity-only, not a MAC. Do not expose taut to an untrusted network.
 - **Single-threaded, single process per node.** One event loop, no locks. Throughput is
   bounded by one core; the design leans on that to stay simple and correct.
-- **IPv4 only**, minimal 2-way handshake, no `TIME_WAIT` — connection restart is ambiguous
+- **IPv4 only**, minimal 2-way handshake, no `TIME_WAIT` - connection restart is ambiguous
   by design; documented rather than solved.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT - see [`LICENSE`](LICENSE).

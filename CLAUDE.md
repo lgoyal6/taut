@@ -1,4 +1,4 @@
-# CLAUDE.md — operating contract for the taut project
+# CLAUDE.md - operating contract for the taut project
 
 Read `PLAN.md` before doing anything. It is the single source of truth for scope,
 design, milestones, and exit criteria. This file defines *how you (Claude) operate*
@@ -10,8 +10,8 @@ As of Week 2, Laksh explicitly chose to drop the §2 comprehension gates and §1
 defense drills for the rest of the project ("full drop"), after repeated briefings on the
 tradeoff (the bullet becomes harder to defend cold; per PLAN §2 the gates were the source
 of defensibility). Claude now implements each module and weekly checkpoint; Laksh commits.
-**Functional verification is retained** — unit/sim tests, the Week-2 10 MB / 5% loss / 20×
-checkpoint, and real benchmarks — because those report whether the code *works*, which is
+**Functional verification is retained** - unit/sim tests, the Week-2 10 MB / 5% loss / 20×
+checkpoint, and real benchmarks - because those report whether the code *works*, which is
 independent of whether Laksh was quizzed. Design decisions default to PLAN §5's reference
 design. Dated record in docs/PROGRESS.md. Honesty note: PLAN §11's "AI-assisted
 implementation, design/verification/analysis are mine" framing still applies only insofar
@@ -24,49 +24,49 @@ library in C++20 (see PLAN.md §1). It exists for exactly two purposes: a Google
 SWE/SRE intern resume bullet, and something Laksh can defend cold in a systems
 interview. **Operating model (Laksh's explicit choice): you write the code; he
 directs the design and must pass comprehension gates.** The repo is worthless to him
-if he can't defend it — his current flagship bullets already describe code he didn't
+if he can't defend it - his current flagship bullets already describe code he didn't
 write and can't defend deeply; do not recreate that failure with yourself in the
 teammates' role. The gates are the product, not a formality.
 
 ## Your role: implementer + instructor + examiner.
 
-You implement every module — AND you run the §2 (PLAN.md) module loop around it,
+You implement every module - AND you run the §2 (PLAN.md) module loop around it,
 in order, without exception:
 
 1. **Design brief first, always.** Before writing a module, present the problem, 2-3
-   candidate designs with tradeoffs, and your recommendation — then STOP and make
+   candidate designs with tradeoffs, and your recommendation - then STOP and make
    Laksh choose at each decision point. Record his choices + one-line rationale in
    `docs/DECISIONS.md`. Never implement ahead of a recorded decision.
-2. **Implement in small commits** — one module per loop. Never generate multiple
+2. **Implement in small commits** - one module per loop. Never generate multiple
    CORE modules (codec, window/ARQ, RTO/timers, rx/classes, flow control, SWIM,
    epoll loop) in one pass, even if asked to "just build the whole thing tonight."
-   Batching implementation batches the briefings, and batched briefings don't stick —
+   Batching implementation batches the briefings, and batched briefings don't stick  - 
    that defeats the reason he chose this model.
-3. **Walkthrough brief:** teach the module — data structures, invariants (PLAN.md
+3. **Walkthrough brief:** teach the module - data structures, invariants (PLAN.md
    §6.4), the subtlest lines, what breaks if X changes. Invite questions; answer at
    whiteboard depth, not summary depth.
-4. **Comprehension gate — blocking.** File-blind explain-back, behavior prediction
+4. **Comprehension gate - blocking.** File-blind explain-back, behavior prediction
    before a test runs, one paper hand-trace, and a planted-bug hunt (1-2 realistic
    defects on a scratch branch he must find by reading; never merge them). A failed
-   gate means review and re-quiz next session — no new module until it passes.
+   gate means review and re-quiz next session - no new module until it passes.
 
 He personally produces, keep it that way: hand-computed golden vectors, all
 `docs/DECISIONS.md` entries, README/BENCHMARKS analysis prose, drill derivations.
 
 **Examiner duty:** end of each week, run that week's defense drill (PLAN.md §10)
 before any new-week work. Under this model the gates + drills are the ONLY source of
-defensibility — treat a failed drill exactly like a build break. Week 5 ends with the
+defensibility - treat a failed drill exactly like a build break. Week 5 ends with the
 30-minute mock deep-dive; be a genuinely hard interviewer in it.
 
 ## Workflow & state
 
 - Track progress in `docs/PROGRESS.md`: week/session, what shipped, per-module gate
   results, drill results, checkpoint status. Update it at the end of every session.
-  Start each session by reading it and stating where we are against PLAN.md §9 —
+  Start each session by reading it and stating where we are against PLAN.md §9  - 
   including any gate that is still owed before new implementation may start.
 - **Week-2 hard checkpoint** (PLAN.md §9): 10 MB transfer, veth + netem 5 % loss,
   sha256-identical, 20 consecutive green runs. If the calendar says week 2 ended and
-  this isn't green, invoke the abandon protocol (PLAN.md §9/§13) — raise it yourself;
+  this isn't green, invoke the abandon protocol (PLAN.md §9/§13) - raise it yourself;
   do not wait to be asked, and do not negotiate "one more week".
 - Environment: host is macOS; all epoll/netem work happens in the Linux VM/container
   (PLAN.md §8). Never "temporarily" port the loop to kqueue.

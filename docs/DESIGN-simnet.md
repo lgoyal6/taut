@@ -1,4 +1,4 @@
-# DESIGN — SimNet (deterministic simulation transport)
+# DESIGN - SimNet (deterministic simulation transport)
 
 The in-process `UdpTransport` used by protocol tests and `fuzz_session` (§6.3). Its whole
 reason for existing: make timer/retransmit heisenbugs reproducible. Same seed + same
@@ -8,7 +8,7 @@ operations => byte-identical run, so every failure repros from `--seed N`.
 - `SimNet` owns a seeded `std::mt19937_64`, an `Impairments` config, and a **virtual clock**
   (`now_`). Time only moves when the test calls `advance()`.
 - `SimNet::endpoint(addr)` hands out `SimEndpoint`s (each a `UdpTransport`). `fd()` is -1:
-  sim endpoints aren't epoll-pollable — sim tests pump the protocol manually rather than
+  sim endpoints aren't epoll-pollable - sim tests pump the protocol manually rather than
   running the real event loop.
 - `send` → `deliver`: draw loss, then (if not dropped) enqueue a copy into the destination
   inbox at `now + delay(+jitter)`; draw dup, and if hit, enqueue a second copy with its own
@@ -24,6 +24,6 @@ is what "repro from --seed on this build" needs; cross-implementation stability 
 claimed.
 
 ## Not modeled (deviations)
-- No bandwidth/queue limits or congestion — out of scope (§5.8).
+- No bandwidth/queue limits or congestion - out of scope (§5.8).
 - Reorder is emergent from delay jitter rather than an explicit reorder-distance knob;
   equivalent for our invariant tests and simpler.

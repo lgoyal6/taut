@@ -1,14 +1,14 @@
-# DESIGN — SWIM membership (§5.9)
+# DESIGN - SWIM membership (§5.9)
 
 Failure detection + membership for the mesh, per the SWIM paper (Das, Gupta, Motivala, 2002).
 One `Swim` instance per node over a `UdpTransport`; single-threaded, driven by `poll()`
-(inbound) and `tick()` (the time-based state machine off `tx_.now()`) — the same shape as
+(inbound) and `tick()` (the time-based state machine off `tx_.now()`) - the same shape as
 `Session`, so the epoll loop and the deterministic SimNet harness both just call those.
 
 ## What it does
 
 - **Protocol period `T = 1 s`.** Each period pick one target by *randomized round-robin*
-  (walk a shuffled member list; reshuffle on wrap — guarantees every live member is probed
+  (walk a shuffled member list; reshuffle on wrap - guarantees every live member is probed
   once per `N-1` periods with no fixed skip pattern) and send a direct **PING** (`probe_id`).
 - **Direct timeout `300 ms`.** No PONG by then → send **PING_REQ** to `k = 3` other members;
   each relays a PING to the target and forwards the target's PONG back to us.
@@ -20,20 +20,20 @@ One `Swim` instance per node over a `UdpTransport`; single-threaded, driven by `
 
 ## Data structures (`swim.h`)
 
-- `members_ : key → Member{addr, state, incarnation, suspect_deadline}` — the membership
+- `members_ : key → Member{addr, state, incarnation, suspect_deadline}` - the membership
   table, excluding self. Key = `(addr_be << 16) | port_be` (same packing SimNet uses).
-- `rumors_ : key → Rumor{state, incarnation, tx_count}` — the dissemination buffer, **one
+- `rumors_ : key → Rumor{state, incarnation, tx_count}` - the dissemination buffer, **one
   entry per subject**, overwritten (budget reset) whenever a newer update for that subject is
   adopted. Gossiped least-transmitted-first, dropped once `tx_count ≥ budget`.
-- `relays_ : relay_probe_id → PendingRelay{requester, req_probe, target, deadline}` — in-flight
+- `relays_ : relay_probe_id → PendingRelay{requester, req_probe, target, deadline}` - in-flight
   indirect probes we are relaying on someone else's behalf.
-- `probe_order_ / probe_index_` — the shuffled round-robin cursor.
+- `probe_order_ / probe_index_` - the shuffled round-robin cursor.
 - Per-period scalars: `probe_target_`, `probe_id_`, `ping_deadline_`, `period_deadline_`,
   `next_period_`, and the `probing_ / indirect_sent_ / probe_acked_` flags.
 
 ## The state-merge rule (the correctness core)
 
-`apply_rumor(subject, state, inc)` is the single entry point for every state change — wire
+`apply_rumor(subject, state, inc)` is the single entry point for every state change - wire
 gossip, our own conclusions, and tests all go through it. `overrides()` implements the SWIM
 §4.2 precedence:
 
@@ -44,11 +44,11 @@ gossip, our own conclusions, and tests all go through it. `overrides()` implemen
 | **Dead(i)**   | always | always | never |
 
 Two rules carry all the weight:
-1. **Suspect beats Alive at equal incarnation** — a suspicion sticks until the accused itself
+1. **Suspect beats Alive at equal incarnation** - a suspicion sticks until the accused itself
    produces a *higher* incarnation. A plain `Alive` at the same incarnation cannot clear it.
 2. **Only the accused can produce that higher incarnation** (`refute()` bumps
    `my_incarnation_` past the suspected value). Hence a live node that can still hear gossip
-   always out-runs a suspicion before the 3 s timer — **invariant 6**.
+   always out-runs a suspicion before the 3 s timer - **invariant 6**.
 
 `Dead` is terminal (overrides any non-dead, at any incarnation; nothing overrides it).
 
@@ -57,7 +57,7 @@ Two rules carry all the weight:
 A node `Q` briefly can't reach `P` (a lost ping, a CPU spike) and gossips `Suspect(P, i)`. `P`
 is alive: it hears the suspicion, bumps to `i+1`, and floods `Alive(P, i+1)`, which overrides
 `Suspect(P, i)` everywhere (`i+1 > i`). The *original* `Suspect(P, i)` is still floating around
-and arrives at some node **after** it already holds `Alive(P, i+1)` — and is silently dropped,
+and arrives at some node **after** it already holds `Alive(P, i+1)` - and is silently dropped,
 because `i ≯ i+1`. Without incarnations that stale rumor would re-kill a healthy node; with
 them it is inert. `tests/unit/swim_test.cc::IncarnationNumbersRejectStaleSuspicion` reproduces
 exactly this interleaving (and the contrast: a suspicion at the *current* incarnation does
@@ -67,7 +67,7 @@ apply, which is why refutation must always bump).
 
 Every SWIM packet (PING/PING_REQ/PONG/JOIN) piggybacks a batch of pending rumors, chosen
 least-transmitted-first. Per-rumor **send budget** `b = ceil(gossip_factor · ln N)` with
-`gossip_factor = 3` — for `N = 5`, `b = ceil(3 · ln 5) = ceil(4.83) = 5`. This is the classic
+`gossip_factor = 3` - for `N = 5`, `b = ceil(3 · ln 5) = ceil(4.83) = 5`. This is the classic
 infection-style dissemination: each update rides ~`b` outgoing packets, giving whp delivery in
 `O(log N)` rounds while bounding per-update traffic.
 
@@ -82,10 +82,10 @@ per-period probability `1 − (3/4)^4 ≈ 0.684`, so
 case at `N-1 = 4` periods (a single detector is guaranteed to reach it within one shuffle).
 
 **2. Probe → SUSPECT.** A probe that starts at a period boundary fails direct (`300 ms`),
-fails all `k = 3` indirect relays, and is concluded SUSPECT at that period's end — i.e. within
+fails all `k = 3` indirect relays, and is concluded SUSPECT at that period's end - i.e. within
 `T = 1 s` of being targeted. So
 `E[t_suspect] ≈ E[periods to probe] · T ≈ 1.5 s`; worst case `≈ (N-1)·T = 4 s`.
-(The demo measures **~1.0 s** at its seed — one period.)
+(The demo measures **~1.0 s** at its seed - one period.)
 
 **3. SUSPECT → DEAD.** Fixed `suspicion_timeout = 3 s`.
 
@@ -93,7 +93,7 @@ fails all `k = 3` indirect relays, and is concluded SUSPECT at that period's end
 the verdict adds `O(log N) ≈ 2–3` periods to reach all survivors.
 
 **Why `k = 3` indirect probes (they change accuracy, not latency).** Indirect probing does
-*not* speed detection — it suppresses false positives. A single dropped direct packet or a
+*not* speed detection - it suppresses false positives. A single dropped direct packet or a
 momentarily busy target would falsely suspect a healthy node; requiring the direct probe *and*
 `k` independent relay paths to all fail drives the false-suspicion probability to roughly
 `p_fail^(1+k)`, disambiguating "the target is dead" from "my one path to it was unlucky." `k`
@@ -116,11 +116,11 @@ ordering robust across seeds; the mechanism it exercises is identical to the T=1
 - **Unresolved `Suspect` rumors are re-injected every period** (anti-entropy), beyond a strict
   single-shot reading of the paper's dissemination. Without it, a rumor's `~3·log N` send
   budget is spent broadcasting into a partition, so after the partition heals the accused never
-  hears the suspicion and never refutes — membership would not reconverge. Re-injection keeps
+  hears the suspicion and never refutes - membership would not reconverge. Re-injection keeps
   every open suspicion advertised until it is refuted or confirmed dead.
 - **Basic SWIM only.** No Lifeguard/SWIM+ refinements (suspicion-count-weighted timeouts, local
   health multiplier, dogpile). The incarnation machinery is the part that matters for the
-  interview story. (v0.1.0 also made Dead terminal; v0.1.1 replaces that — see "Rejoin" below.)
+  interview story. (v0.1.0 also made Dead terminal; v0.1.1 replaces that - see "Rejoin" below.)
 
 ## Rejoin (v0.1.1)
 
@@ -131,7 +131,7 @@ changes, both protocol-level:
 
 - **Precedence is now lexicographic on `(incarnation, state)`** with `Alive < Suspect < Dead`
   (the memberlist/Lifeguard ordering). Within one incarnation, evidence only accumulates toward
-  death — Suspect beats Alive, Dead beats both, Dead is unbeatable. A *strictly newer*
+  death - Suspect beats Alive, Dead beats both, Dead is unbeatable. A *strictly newer*
   incarnation beats anything older, **including Dead**: only the subject itself can mint a
   higher incarnation, so `Alive@k+1` is first-hand proof of life issued after the `Dead@k`
   verdict's evidence. Death verdicts are declared at the member's then-current incarnation, so
@@ -143,7 +143,7 @@ changes, both protocol-level:
   it at `k+1`, which now wins and gossips out. The cluster converges back to Alive with no
   resurrection special case anywhere.
 - **JOIN request/reply are distinguished by the subject field** (a request names its sender,
-  a reply names the joiner). v0.1.0 answered every JOIN with a JOIN reply — including replies —
+  a reply names the joiner). v0.1.0 answered every JOIN with a JOIN reply - including replies  - 
   so any join exchange degenerated into an **infinite JOIN ping-pong** (state converged, so
   only counting packets catches it; `JoinExchangeTerminates` now does). `handle_join` also now
   merges the joiner through `apply_rumor` instead of unconditionally adopting/gossiping Alive,
@@ -153,7 +153,7 @@ changes, both protocol-level:
 
 Caught LIVE by tautq's chaos partition scenario (permanently stalled jobs, both sides of a
 healed partition holding Dead verdicts forever): once Dead verdicts land, the base protocol
-goes silent across the healed link — Dead members are never probed (`pick_target` skips
+goes silent across the healed link - Dead members are never probed (`pick_target` skips
 them), and the accusation's gossip budget was spent INTO the partition, so even incidental
 contact would not tell the accused to refute. Rejoin (v0.1.1) doesn't help: nobody
 restarted, so nobody JOINs.
@@ -175,22 +175,22 @@ Verified by `SymmetricPartitionHealsAfterDeadVerdicts` (3 seeds): split {3,4}|{0
 ## Verification (all on seeded SimNet, `tests/unit/swim_test.cc`)
 
 - `IncarnationNumbersRejectStaleSuspicion`, `SelfRefutesByBumpingIncarnation`,
-  `DeadStickyWithinIncarnationNewerAliveResurrects` — the precedence rules, including the
+  `DeadStickyWithinIncarnationNewerAliveResurrects` - the precedence rules, including the
   exact stale-rumor interleaving above and the v0.1.1 rejoin ordering.
-- `JoinExchangeTerminates` — a join is exactly 1 request + 1 reply (counted on the wire);
+- `JoinExchangeTerminates` - a join is exactly 1 request + 1 reply (counted on the wire);
   regression for the v0.1.0 infinite JOIN ping-pong.
-- `RestartedNodeRejoins` (3 seeds) — kill a node, confirm Dead cluster-wide, restart it on the
+- `RestartedNodeRejoins` (3 seeds) - kill a node, confirm Dead cluster-wide, restart it on the
   same endpoint with fresh state; it rejoins via JOIN → refute@k+1 and the cluster reconverges
   to all-Alive.
-- `DetectsCrashedNode` — crash → SUSPECT → DEAD, verdict gossiped to every survivor; asserts
+- `DetectsCrashedNode` - crash → SUSPECT → DEAD, verdict gossiped to every survivor; asserts
   SUSPECT precedes DEAD by ~`suspicion_timeout`.
-- `PartitionHealReconverges` (4 seeds) — isolate a node, detect it, heal; membership
+- `PartitionHealReconverges` (4 seeds) - isolate a node, detect it, heal; membership
   reconverges to all-Alive and the node is **never** confirmed DEAD (invariant 6 under
   partition).
-- `LiveReachableNodeNeverConfirmedDead` (5 seeds, 10 % loss, 30 s virtual) — **invariant 6**:
+- `LiveReachableNodeNeverConfirmedDead` (5 seeds, 10 % loss, 30 s virtual) - **invariant 6**:
   with refutations flowing, transient suspicions occur but no reachable node is ever confirmed
   dead.
-- `JoinLearnsRoster` — a newcomer knowing only an introducer learns the whole roster (JOIN
+- `JoinLearnsRoster` - a newcomer knowing only an introducer learns the whole roster (JOIN
   full-snapshot reply) and the cluster learns it (gossip).
 
 The `mesh_node` demo runs the 5-node story end-to-end on the virtual clock and prints the live

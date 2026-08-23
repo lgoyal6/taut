@@ -1,4 +1,4 @@
-# DESIGN — timers
+# DESIGN - timers
 
 Hand-built binary min-heap of deadlines (§5.7). Backs the ARQ's per-packet RTO deadlines
 and the flow-control persist timer. Implemented Week 2.
@@ -9,11 +9,11 @@ and the flow-control persist timer. Implemented Week 2.
 - Each timer gets a monotonic `TimerId`.
 
 ## Lazy deletion
-`cancel(id)` records the id in a `cancelled_` set — O(1), no search. A cancelled entry stays
+`cancel(id)` records the id in a `cancelled_` set - O(1), no search. A cancelled entry stays
 in the heap until it reaches the root, at which point `prune_root` discards it (and erases
 it from the set). So `next_deadline`/`pop_due`/`empty` all prune first. This trades a little
 transient memory for O(1) cancel and avoids the bookkeeping of tracking each entry's heap
-index. (PLAN §5.7's stated approach; the alternative — a timer *wheel* — is the classic
+index. (PLAN §5.7's stated approach; the alternative - a timer *wheel* - is the classic
 follow-up question, deliberately not built.)
 
 ## Complexity
