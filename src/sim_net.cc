@@ -47,8 +47,8 @@ std::uint64_t SimNet::uniform_below(std::uint64_t bound) {
 std::chrono::milliseconds SimNet::draw_delay() {
     std::chrono::milliseconds d = imp_.delay;
     if (imp_.jitter.count() > 0) {
-        d += std::chrono::milliseconds(
-            static_cast<std::int64_t>(uniform_below(static_cast<std::uint64_t>(imp_.jitter.count()))));
+        d += std::chrono::milliseconds(static_cast<std::int64_t>(
+            uniform_below(static_cast<std::uint64_t>(imp_.jitter.count()))));
     }
     return d;
 }
