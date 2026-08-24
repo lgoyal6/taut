@@ -44,7 +44,9 @@ class SimEndpoint : public UdpTransport {
 
 // Deterministic, in-process datagram network with a virtual clock (§6.3). Same seed +
 // same sequence of operations => byte-identical run, so every protocol-test failure
-// reproduces from --seed N.
+// reproduces from --seed N. That determinism is cross-platform: impairments are drawn
+// from the engine directly rather than through std::uniform_*_distribution, which is
+// unspecified and differs between libc++ and libstdc++ (see src/sim_net.cc).
 class SimNet {
   public:
     using TimePoint = std::chrono::steady_clock::time_point;
@@ -76,6 +78,7 @@ class SimNet {
     }
 
     double uniform01();
+    std::uint64_t uniform_below(std::uint64_t bound);
     std::chrono::milliseconds draw_delay();
     void deliver(const Endpoint& from, const Endpoint& to, std::span<const std::byte> data);
     std::optional<RecvResult> receive(const Endpoint& at, std::span<std::byte> buf);
