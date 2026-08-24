@@ -77,6 +77,72 @@ deterministic simulator (`SimNet`) used by the tests and the protocol-state fuzz
 | 1 ReliableUnordered | exactly-once, any order | yes | deliver on arrival (the latency star) |
 | 2 ReliableOrdered | exactly-once, in send order | yes | reassembly buffer, deliver in seq order |
 
+## Use it in your project
+
+Both paths land on the same `taut::taut` target, so you can switch between them
+without touching your code.
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(taut
+    GIT_REPOSITORY https://github.com/lgoyal6/taut.git
+    GIT_TAG        v0.2.1)
+FetchContent_MakeAvailable(taut)
+
+target_link_libraries(your_app PRIVATE taut::taut)
+```
+
+Or install it once and find it from anywhere:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target taut
+cmake --install build --prefix /usr/local
+```
+
+```cmake
+find_package(taut 0.2 REQUIRED)
+target_link_libraries(your_app PRIVATE taut::taut)
+```
+
+Pulled in as a subproject, taut builds the library and nothing else: tests,
+demos, fuzzers and benchmarks all default off unless taut is the top-level
+project.
+
+Two things to know before you write the loop, because both are easy to get
+wrong. Reliable classes are **windowed** (`Config::window_pkts`, 64 by
+default), so `send()` returns false under backpressure rather than queueing
+without bound. And **`tick()` is what fires RTO retransmits**; `poll()` only
+drains readable datagrams, so a loop that calls `poll()` alone never recovers a
+lost packet.
+
+```cpp
+#include <taut/session.h>
+#include <taut/sim_net.h>
+
+taut::SimNet net(99, taut::Impairments{.loss = 0.20, .delay = 2ms, .jitter = 1ms});
+taut::Endpoint a{1, 1}, b{2, 2};
+taut::Config cfg;
+taut::Session sa(net.endpoint(a), b, cfg);
+taut::Session sb(net.endpoint(b), a, cfg);
+
+sb.on_message([&](taut::Class, taut::ByteSpan p) { /* deliver */ });
+
+if (!sa.send(taut::Class::ReliableOrdered, payload)) {
+    // window full: drain and retry, do not drop
+}
+for (;;) {
+    net.advance(2ms);       // or wait on the real event loop
+    sa.tick();  sb.tick();  // RTO retransmits
+    sa.poll();  sb.poll();  // drain readable datagrams
+}
+```
+
+`SimNet` is an in-process lossy link on a virtual clock, which is how you can
+unit-test against taut on any platform. The real UDP transport and the epoll
+loop are **Linux-only**; the codec, CRC, RTO estimator, timers, SWIM and SimNet
+are portable, which is enough to build and test against on macOS.
+
 ## Build
 
 Requires clang 17+, CMake ≥ 3.24, and Ninja. `epoll` and `netem` are Linux-only, so on

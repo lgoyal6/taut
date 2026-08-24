@@ -5,6 +5,10 @@ FetchContent_Declare(
     GIT_TAG v1.15.2
     GIT_SHALLOW TRUE
 )
+# Without this, GoogleTest's own install rules join ours and `cmake --install`
+# scatters gtest/gmock headers into the consumer's prefix (and fails outright
+# when the gmock target was never built). Same guard strata's test tree uses.
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 # Build/link/parse sanity smoke (no framework) — kept as a fast canary.
