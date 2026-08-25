@@ -35,7 +35,7 @@ The expected result is **much lower p99 message latency than TCP at 5–10 % los
 measured cost in bandwidth overhead and clean-link throughput.** Both sides of that trade
 get plotted - a graph where taut wins at everything would mean the benchmark is broken.
 
-> **Status: v0.1.2.** The library is complete and **powers
+> **Status: v0.2.1.** The library is complete and **powers
 > [tautq](https://github.com/lgoyal6/tautq)**, a 5-node distributed webhook-delivery
 > service whose replication, failover, and membership plane all ride taut - its chaos
 > suite found the v0.1.1 (SWIM rejoin) and v0.1.2 (post-Dead partition-heal) protocol
