@@ -17,16 +17,38 @@ SimEndpoint& SimNet::endpoint(const Endpoint& addr) {
     return *slot;
 }
 
+// The class promises that the same seed reproduces a run byte for byte. That
+// held only within one standard library: std::mt19937_64 is fully specified and
+// portable, but std::uniform_real_distribution and std::uniform_int_distribution
+// are not. libc++ and libstdc++ map engine output differently and consume
+// different numbers of words doing it, so the same seed drew a different
+// impairment sequence on macOS than on Linux, and Rx.UnreliableDedupNoRetransmit
+// failed on one platform while passing on the other. Drawing straight from the
+// engine is what makes the documented guarantee true everywhere.
+
 double SimNet::uniform01() {
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
-    return dist(rng_);
+    // Canonical 53-significand-bit construction: one engine word, top 53 bits,
+    // scaled by 2^-53. Yields [0, 1) with every representable step equally likely.
+    return static_cast<double>(rng_() >> 11) * (1.0 / 9007199254740992.0);
+}
+
+std::uint64_t SimNet::uniform_below(std::uint64_t bound) {
+    // Unbiased bounded draw. A plain modulo would over-represent the low
+    // residues by the width of the leftover tail; rejecting that tail removes
+    // the bias. `-bound % bound` is 2^64 mod bound in unsigned arithmetic.
+    const std::uint64_t reject_below = (~bound + 1U) % bound;
+    std::uint64_t r = rng_();
+    while (r < reject_below) {
+        r = rng_();
+    }
+    return r % bound;
 }
 
 std::chrono::milliseconds SimNet::draw_delay() {
     std::chrono::milliseconds d = imp_.delay;
     if (imp_.jitter.count() > 0) {
-        std::uniform_int_distribution<std::int64_t> j(0, imp_.jitter.count() - 1);
-        d += std::chrono::milliseconds(j(rng_));
+        d += std::chrono::milliseconds(static_cast<std::int64_t>(
+            uniform_below(static_cast<std::uint64_t>(imp_.jitter.count()))));
     }
     return d;
 }
