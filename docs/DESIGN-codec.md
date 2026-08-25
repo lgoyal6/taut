@@ -1,7 +1,7 @@
 # DESIGN - codec / wire format
 
 Finalized in Week 1 S1. This is the byte-level contract every other module speaks.
-It follows the PLAN §5.2 reference design; the one clarification we add on top of the
+It follows the DESIGN.md §5.2 reference design; the one clarification we add on top of the
 reference (class-0 sequence handling) is called out explicitly below and mirrored in
 `docs/DECISIONS.md`.
 
@@ -21,14 +21,14 @@ offset size field
                            bit2 keyed-CRC (fuzz build only, §6.2), rest reserved = 0
 4      1    class          0=Unreliable 1=ReliableUnordered 2=ReliableOrdered
 5      4    seq            u32 (see "sequence spaces" below)
-9      4    cum_ack        u32 — highest reliable seq received with no gaps below it
-13     2    adv_window     u16 — receiver free buffer, IN PACKETS (flow control, §5.6)
+9      4    cum_ack        u32, highest reliable seq received with no gaps below it
+13     2    adv_window     u16, receiver free buffer, IN PACKETS (flow control, §5.6)
 15     2    payload_len    u16
-17     4    crc32c         u32 — over the entire datagram with this field zeroed
+17     4    crc32c         u32, over the entire datagram with this field zeroed
 --- base header ends at offset 21 ---
-21     [8]  sack_bitmap    iff flags.bit0 — bit i set = reliable seq (cum_ack+1+i) rx'd,
+21     [8]  sack_bitmap    iff flags.bit0, bit i set = reliable seq (cum_ack+1+i) rx'd,
                            i in [0,63]; covers exactly one 64-packet window
-[+]    [n]  membership     iff flags.bit1 — up to 3 × 12 B entries:
+[+]    [n]  membership     iff flags.bit1, up to 3 × 12 B entries:
                            { addr4, port u16, incarnation u32, state u8, pad u8 }
 [+]    ...  payload        (payload_len bytes)
 ```
@@ -86,14 +86,15 @@ reconciles the loose §5.1 sketch, where the name reads as if payload could be a
 - `payload_len` and the flags-implied optional sections must fit within the received
   datagram length, or decode fails - never trust the length field against the buffer.
 
-## Golden vectors (Laksh writes these first, by hand - §6.1)
-Before the encoder/decoder is implemented (S2), Laksh hand-computes on paper: (a) one
-DATA packet's exact bytes incl. CRC32C, (b) the decoded struct for a known byte array,
-(c) a one-bit-flip case that must be rejected. That exercise is where the format becomes
-his. (Committed as `kGolden` in `tests/unit/codec_test.cc`; Laksh's hand-laid packet is
+## Golden vectors (hand-computed before the codec existed, §6.1)
+The golden vectors were worked out on paper before the encoder or decoder was written:
+(a) one DATA packet's exact bytes including CRC32C, (b) the decoded struct for a known
+byte array, (c) a one-bit-flip case that must be rejected. Deriving them by hand is what
+makes a wire-format bug detectable rather than self-consistent. (Committed as `kGolden`
+in `tests/unit/codec_test.cc`; the hand-laid packet is
 `7a 75 11 00 02 01 00 00 00 00 00 00 00 40 00 02 00 cb 4e 6f c3 68 69`, CRC `0xC36F4ECB`.)
 
-## Codec implementation (Week 1 S2 base; SACK added feat/core)
+## Codec implementation
 
 The first codec parsed the **base header (offsets 0–20) + payload + CRC** only. The **SACK
 bitmap (flags bit0)** is now parsed and emitted; the membership (bit1) and keyed-CRC (bit2)

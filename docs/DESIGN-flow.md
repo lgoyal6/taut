@@ -43,7 +43,7 @@ window with a stale value (RFC 793's WL rule, simplified).
 
 ## Invariant 3, stated precisely
 
-PLAN §6.4 invariant 3 is `in_flight ≤ min(window_pkts, adv_window)`. Two halves:
+DESIGN.md §6.4 invariant 3 is `in_flight ≤ min(window_pkts, adv_window)`. Two halves:
 
 - **Class 2 (ordered):** it holds *literally, at all times*. Out-of-order data goes to
   `reasm_`, which does not reduce `adv_window`; in-order delivery to a stalled app grows

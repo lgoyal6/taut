@@ -1,10 +1,10 @@
 # taut benchmarks - latency, overhead, and where taut loses
 
-> Honesty contract (PLAN §7, CLAUDE.md): real baselines only, fixed seeds, raw CSVs
+> Honesty contract (DESIGN.md §7): real baselines only, fixed seeds, raw CSVs
 > committed, and the axes where taut **loses** are published on the same page as the wins.
 > If taut won everything, the harness would be broken. It doesn't - see §7.2 and §7.3.
 
-The thesis (PLAN §1): general-purpose transports carry obligations we can drop. TCP must
+The thesis: general-purpose transports carry obligations we can drop. TCP must
 deliver bytes strictly in order (head-of-line blocking), must be fair (congestion control),
 and won't retransmit below a ~200 ms RTO floor on Linux. taut serves one niche - small
 telemetry messages on a lossy, closed mesh - and trades bandwidth for tail latency. This
@@ -44,14 +44,14 @@ The two prices taut pays, same fixture:
 
 - **Throughput (0 % loss, saturating one flow):** kernel TCP ~**235 Mbit/s** vs taut ~**8.7**
   (ENet ~16) - TCP wins bulk by ~27×, the disclosed cost of one datagram at a time with no
-  `sendmmsg`/`recvmmsg` batching (PLAN §5.7).
+  `sendmmsg`/`recvmmsg` batching (DESIGN.md §5.7).
 - **Bandwidth overhead (bytes-on-wire / goodput bytes, sustained load):** taut climbs from
   ~1.13× at 0 % loss to ~**1.27× at 10 %** as retransmits accumulate, vs TCP's ~1.06–1.17×  - 
   taut spends ~15–20 % more wire bytes to buy the tail. (ENet's overhead is noisy at high loss  - 
   occasional connection-setup outliers; the table/plot use the median. See `summary_overhead.csv`.)
 
 **Data provenance:** `LOSSES="0 1 5 10 20" RUNS=5 DURATION=10 RUN_OPENLOOP=1` at RTT 30 ms, 512 B
-messages, seeds 1–5, over veth+netns with offloads off. DURATION is below PLAN §7's 60 s target:
+messages, seeds 1–5, over veth+netns with offloads off. DURATION is below DESIGN.md §7's 60 s target:
 the tail *ranking* is robust, but p999 at the highest loss points is from a few hundred samples.
 The raw CSVs in `bench/data/` are the source of truth.
 
@@ -60,7 +60,7 @@ The raw CSVs in `bench/data/` are the source of truth.
 ## 2. What we measure, and why this design
 
 **Message latency** = time from when the application hands a message to the transport until the
-peer application receives it. We report it three ways per PLAN §7 (p50, p99, p999) across loss
+peer application receives it. We report it three ways per DESIGN.md §7 (p50, p99, p999) across loss
 ∈ {0, 1, 5, 10, 20} %.
 
 ### 2.1 Headline experiment: closed-loop request–reply (`--mode rr`)
@@ -69,10 +69,10 @@ The headline uses a **request–reply probe** (netperf `TCP_RR` style): the clie
 512 B message, the server echoes it verbatim, the client records the round trip, then repeats.
 One message is outstanding at a time.
 
-This is a **documented deviation** from PLAN §7's "Poisson arrivals at a configured rate."
+This is a **documented deviation** from DESIGN.md §7's "Poisson arrivals at a configured rate."
 The reason is concrete and worth stating, because it's the crux of an honest latency benchmark:
 
-- PLAN §7's *predicted* shape - "TCP's tail explodes past ~200 ms (RTO_min + head-of-line);
+- DESIGN.md §7's *predicted* shape - "TCP's tail explodes past ~200 ms (RTO_min + head-of-line);
   taut bounded near RTT + rto_floor" - is a **per-message recovery-latency** phenomenon that
   only shows cleanly at loads *below* each transport's throughput.
 - With 512 B messages at 20 % bidirectional loss, TCP's congestion-controlled goodput collapses
@@ -81,7 +81,7 @@ The reason is concrete and worth stating, because it's the crux of an honest lat
   sender blocks in `write()`, the queue diverges, and the measured "latency" is a truncated
   artifact of a growing backlog - not per-message recovery latency. There is no fixed rate that
   is both sub-saturation at 20 % loss and productive of enough samples.
-- A closed-loop RR probe measures exactly the quantity PLAN wants - *how long to reliably
+- A closed-loop RR probe measures exactly the quantity that matters - *how long to reliably
   deliver one message under loss* - and is **rate-independent** and immune both to coordinated
   omission and to congestion-control throughput throttling. It cleanly isolates recovery
   latency (RTO + head-of-line) from throughput.
@@ -91,11 +91,11 @@ We keep the open-loop Poisson experiment too (§7.4) as the honest "sustained-lo
 ### 2.2 Sustained-load experiment: open-loop Poisson (`--mode latency`)
 
 Open-loop Poisson arrivals at `--rate` messages/second, 512 B each, fixed seed. This is the
-literal PLAN §7 workload. Under loss it reports **delivery ratio** (received / offered) and
+literal DESIGN.md §7 workload. Under loss it reports **delivery ratio** (received / offered) and
 coordinated-omission-corrected latency; beyond a knee, TCP and ENet cannot sustain the offered
 rate and their delivery ratio falls (§7.4). That divergence is a *finding*, not a harness bug:
 taut sustains the rate because it has **no congestion control** and refuses to back off on
-loss - the exact, disclosed tradeoff of PLAN §5.8. The bandwidth-overhead plot (§7.2) is the
+loss - the exact, disclosed tradeoff of DESIGN.md §5.8. The bandwidth-overhead plot (§7.2) is the
 counterweight.
 
 ### 2.3 One-way vs round-trip, and clock validity
@@ -123,23 +123,23 @@ would flatter whichever transport stalls - the opposite of what we want to measu
 - **VM:** Ubuntu 24.04, Linux 6.8 (aarch64), 4 vCPU, 4 GiB RAM. clang 18, CMake 3.28.
 - **Build:** `release` preset (`-O2`, **no sanitizers** - ASan/UBSan would dominate latency).
 - **Network:** veth pair across two network namespaces (`benchA` 10.9.0.1 / `benchB` 10.9.0.2),
-  per PLAN §6.5. netem applied **in both directions**; TSO/GSO/GRO **disabled** on both veth
+  per DESIGN.md §6.5. netem applied **in both directions**; TSO/GSO/GRO **disabled** on both veth
   ends so segmentation offload can't flatter TCP (taut sends one datagram per packet and can't
   use it).
 - **netem:** `delay 15ms` each direction ⇒ **RTT 30 ms**; `loss X%` each direction for the loss
   axis. No jitter/reorder/dup on the latency matrix - the loss rate is the single independent
-  variable (reorder/dup/jitter live in the infra soak, PLAN §6.5).
+  variable (reorder/dup/jitter live in the infra soak, DESIGN.md §6.5).
 
 Single-host caveat: this measures protocol/CPU behavior over a controlled emulated link, not
 real Internet paths. It is the standard, reproducible setup for transport A/B latency work and
-is what PLAN §6.5/§8 specifies; it is **not** a claim about wide-area performance.
+is what DESIGN.md §6.5/§8 specifies; it is **not** a claim about wide-area performance.
 
 ---
 
 ## 4. Exact commands
 
 ```bash
-# Build the benchmark binaries (release; ENet fetched via FetchContent — needs network once).
+# Build the benchmark binaries (release; ENet fetched via FetchContent, needs network once).
 cmake --preset release -DTAUT_BUILD_BENCH=ON
 cmake --build --preset release --target latency_bench tcp_baseline enet_baseline
 
@@ -190,7 +190,7 @@ sudo bash bench/scripts/netns_teardown.sh
 
 - **Percentiles:** nearest-rank (no interpolation), so p999 is an actually-observed sample. Each
   run computes its own percentiles from its samples; the matrix reports the **median across the
-  5 runs with min/max whiskers** (PLAN §7).
+  5 runs with min/max whiskers** (DESIGN.md §7).
 - **Sample counts:** RR is self-paced by latency, so high-loss points have fewer samples
   (round trips are longer). The `replies` column in `latency.csv` is the per-run n; p50/p99 are
   robust, p999 at the highest loss points is indicative (few hundred samples) and labelled as
@@ -223,7 +223,7 @@ taut buys its tail latency with **retransmissions it doesn't strictly need**: a 
 no congestion control means it re-sends aggressively and sometimes spuriously. Its bytes-on-wire
 per delivered byte climb with loss and exceed TCP's. This is the direct, measured cost of the
 thesis, and it's why TCP *can't* safely adopt a 25 ms floor on the open Internet: everyone doing
-this produces retransmit storms and unfairness (PLAN §5.5, §5.8).
+this produces retransmit storms and unfairness (DESIGN.md §5.5, §5.8).
 
 ### 7.3 Clean-link throughput (price #2 - taut loses badly)
 
@@ -232,7 +232,7 @@ _Populated from `bench/data/summary_throughput.csv`._
 
 At 0 % loss, saturating a single flow, kernel TCP wins by a wide margin and ENet beats taut too.
 taut's v1 send path is a single-threaded userspace poll loop that copies and encodes one
-datagram at a time, with no `sendmmsg`/`recvmmsg` batching (PLAN §5.7 lists batching as future
+datagram at a time, with no `sendmmsg`/`recvmmsg` batching (DESIGN.md §5.7 lists batching as future
 work) and no segmentation offload. TCP moves bulk data in the kernel with GSO-sized writes. taut
 is built for *many small messages with low tail latency*, not bulk throughput - and the numbers
 say so.
@@ -253,7 +253,7 @@ same coin as §7.1, viewed under load instead of per-message.
 
 1. **Clean-link throughput (§7.3):** we lose because taut v1 is deliberately a small-message,
    single-thread, one-datagram-at-a-time design. No offload, no batching, userspace copies. The
-   fix is known (`sendmmsg`/`recvmmsg`, PLAN §5.7) and out of scope for v1; the honest position
+   fix is known (`sendmmsg`/`recvmmsg`, DESIGN.md §5.7) and out of scope for v1; the honest position
    is "I know exactly what I didn't build."
 2. **Bandwidth overhead (§7.2):** we lose because the 25 ms RTO floor + no congestion control
    means taut spends bytes to buy latency - including spurious retransmits when the true RTT

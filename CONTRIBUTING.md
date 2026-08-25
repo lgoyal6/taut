@@ -7,7 +7,8 @@ that is a deliberate feature. Contributions that keep it that way are very welco
 
 - The per-module notes in `docs/` (`DESIGN-codec.md`, `DESIGN-window.md`,
   `DESIGN-rto.md`, and the rest) are the source of truth for protocol decisions.
-  The `§5.x` section numbers referenced throughout the code point at `PLAN.md`.
+  The `§5.x` section numbers referenced throughout the code point at
+  [`docs/DESIGN.md`](docs/DESIGN.md).
 - `include/taut/` is the public surface. `src/` implements it.
 - `tests/unit/` runs the protocol over `SimNet`, a deterministic in-process network
   with a virtual clock. Same seed, same result: every failure reproduces exactly.

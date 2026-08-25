@@ -154,7 +154,7 @@ are portable, which is enough to build and test against on macOS.
 ## Build
 
 Requires clang 17+, CMake ≥ 3.24, and Ninja. `epoll` and `netem` are Linux-only, so on
-macOS develop inside a Linux VM (Lima - see [PLAN §8](PLAN.md)).
+macOS develop inside a Linux VM (Lima; see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ```bash
 cmake --preset dev            # Debug + ASan/UBSan
@@ -231,7 +231,7 @@ and the "why we lose where we lose" analysis are in [`docs/BENCHMARKS.md`](docs/
 (In this one-outstanding RR workload class 1 ≈ class 2; class 1's head-of-line-blocking win
 needs a pipelined load with several messages in flight.)
 
-## Limitations (deliberate - see PLAN §1 non-goals)
+## Limitations (deliberate)
 
 - **No congestion control.** Fixed window, no Reno/CUBIC/BBR. Two taut flows sharing a
   bottleneck would stomp each other and everyone else. This is a closed-mesh transport;
