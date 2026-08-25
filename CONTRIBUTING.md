@@ -5,8 +5,9 @@ that is a deliberate feature. Contributions that keep it that way are very welco
 
 ## Getting oriented
 
-- `docs/DESIGN.md` is the source of truth for protocol decisions; section numbers
-  (§5.x) are referenced throughout the code.
+- The per-module notes in `docs/` (`DESIGN-codec.md`, `DESIGN-window.md`,
+  `DESIGN-rto.md`, and the rest) are the source of truth for protocol decisions.
+  The `§5.x` section numbers referenced throughout the code point at `PLAN.md`.
 - `include/taut/` is the public surface. `src/` implements it.
 - `tests/unit/` runs the protocol over `SimNet`, a deterministic in-process network
   with a virtual clock. Same seed, same result: every failure reproduces exactly.
@@ -17,8 +18,8 @@ that is a deliberate feature. Contributions that keep it that way are very welco
 
 ```
 cmake --preset dev
-cmake --build build
-ctest --test-dir build
+cmake --build --preset dev
+ctest --preset dev
 ```
 
 Fuzzing (libFuzzer): `fuzz/run_fuzz.sh`. Sanitizer presets are in CMakePresets.json;
@@ -28,7 +29,7 @@ please run ASan/UBSan before opening a PR that touches the codec or session logi
 
 - One concern per PR, with a test that fails before and passes after.
 - Protocol-behavior changes need a SimNet test at a hostile setting (loss 20%+,
-  jitter enabled) and a note in docs/DESIGN.md.
+  jitter enabled) and a note in the matching `docs/DESIGN-*.md`.
 - Determinism is sacred: nothing in `src/` may read wall-clock time or randomness
   except through the injected transport/clock. If your change breaks
   same-seed-same-bytes reproducibility, it will not land.
