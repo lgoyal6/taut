@@ -31,8 +31,8 @@ get plotted - a graph where taut wins at everything would mean the benchmark is 
 > [tautq](https://github.com/lgoyal6/tautq)**, a 5-node distributed webhook-delivery
 > service whose replication, failover, and membership plane all ride taut - its chaos
 > suite found the v0.1.1 (SWIM rejoin) and v0.1.2 (post-Dead partition-heal) protocol
-> fixes here. See [`docs/PROGRESS.md`](docs/PROGRESS.md) for the full history and
-> per-module design notes in [`docs/`](docs/).
+> fixes here. Per-module design notes are in [`docs/`](docs/), and the decision
+> record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Architecture
 

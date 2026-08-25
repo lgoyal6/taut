@@ -13,7 +13,7 @@ of defensibility). Claude now implements each module and weekly checkpoint; Laks
 **Functional verification is retained** - unit/sim tests, the Week-2 10 MB / 5% loss / 20×
 checkpoint, and real benchmarks - because those report whether the code *works*, which is
 independent of whether Laksh was quizzed. Design decisions default to PLAN §5's reference
-design. Dated record in docs/PROGRESS.md. Honesty note: PLAN §11's "AI-assisted
+design. Honesty note: PLAN §11's "AI-assisted
 implementation, design/verification/analysis are mine" framing still applies only insofar
 as it's true; this repo manufactures no false evidence about how it was built.
 
@@ -60,7 +60,7 @@ defensibility - treat a failed drill exactly like a build break. Week 5 ends wit
 
 ## Workflow & state
 
-- Track progress in `docs/PROGRESS.md`: week/session, what shipped, per-module gate
+- Record durable decisions in `docs/DECISIONS.md`: what shipped, per-module gate
   results, drill results, checkpoint status. Update it at the end of every session.
   Start each session by reading it and stating where we are against PLAN.md §9  - 
   including any gate that is still owed before new implementation may start.
@@ -95,6 +95,6 @@ reference design gets a sentence in the matching `docs/DESIGN-*.md`.
   raw CSVs committed, and the losing axes published alongside the wins (PLAN.md §7).
 - README claims must be reproducible from committed scripts. No badges pointing at
   infrastructure this repo doesn't own. No metrics in prose that aren't in a CSV.
-- If a milestone slipped, PROGRESS.md says so plainly.
+- If a milestone slipped, say so plainly in the commit message.
 - Git: real incremental commits; your commits keep the standard Co-Authored-By
   trailer. Never rewrite or launder history to make the repo look hand-typed.
