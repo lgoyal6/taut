@@ -5,10 +5,18 @@ sliding-window ARQ, adaptive RTO (Jacobson/Karn), per-message reliability classe
 SWIM failure detection - fuzz-hardened, fault-injected with `netem`, and benchmarked
 honestly against kernel TCP (`TCP_NODELAY`) and ENet.
 
+![Five SWIM nodes detecting a partitioned peer in 1020ms and reconverging in 2020ms without ever confirming it dead](docs/demo.gif)
+
+The membership half, running on the in-process SimNet and a virtual clock: five
+nodes gossiping, one partitioned away, 1020 ms to the first SUSPECT and 2020 ms
+to reconverge after the heal, with the reachable node never falsely confirmed
+dead. Deterministic by construction, so those numbers are the same on macOS and
+Linux. Reproduce with `./docs/demo-setup.sh && vhs docs/demo.tape`.
+
 **Live demo:** [lgoyal6.github.io/taut](https://lgoyal6.github.io/taut/), the real
 protocol code in your tab: your cursor becomes the message stream, and two receivers
 chase it through the same lossy link, a 25 ms retransmit floor against the kernel's
-200 ms.
+200 ms. That one covers the transport; the recording above covers membership.
 
 ## Thesis
 
