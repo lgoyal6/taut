@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# soak.sh — the PLAN §9 Week-2 HARD CHECKPOINT and the loss sweep.
+# soak.sh - the PLAN §9 Week-2 HARD CHECKPOINT and the loss sweep.
 #
 # Checkpoint: transfer a 10 MB file over taut class 2 across the veth/netns fixture at the
 # §6.5 impairment (loss 5%, delay 30ms +/- 10ms, reorder 1%, duplicate 0.5%), assert the
@@ -52,7 +52,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$(id -u)" -ne 0 ]]; then
-    echo "soak.sh: must run as root (use sudo) — netns exec needs it" >&2
+    echo "soak.sh: must run as root (use sudo) - netns exec needs it" >&2
     exit 1
 fi
 if [[ ! -x "${BIN}/send_file" || ! -x "${BIN}/recv_file" ]]; then
@@ -116,7 +116,7 @@ run_one() {
     return 0
 }
 
-echo "=== taut netem soak — bin=${BIN} ==="
+echo "=== taut netem soak - bin=${BIN} ==="
 echo
 
 # --- Checkpoint: 20 consecutive green at the full §6.5 impairment (loss 5%). ---
@@ -130,17 +130,17 @@ for i in $(seq 1 "${RUNS}"); do
         printf "  run %2d/%d: PASS  (%ss, %s kB/s)\n" "${i}" "${RUNS}" \
             "$(echo "${result}" | cut -d' ' -f1)" "$(echo "${result}" | cut -d' ' -f2)"
     else
-        printf "  run %2d/%d: FAIL — streak broken\n" "${i}" "${RUNS}"
+        printf "  run %2d/%d: FAIL - streak broken\n" "${i}" "${RUNS}"
         break
     fi
 done
 
 echo
 if [[ "${green}" -eq "${RUNS}" ]]; then
-    echo "CHECKPOINT RESULT: ${green}/${RUNS} GREEN — PASS"
+    echo "CHECKPOINT RESULT: ${green}/${RUNS} GREEN - PASS"
     checkpoint_ok=1
 else
-    echo "CHECKPOINT RESULT: ${green}/${RUNS} green — FAIL (need ${RUNS} consecutive)"
+    echo "CHECKPOINT RESULT: ${green}/${RUNS} green - FAIL (need ${RUNS} consecutive)"
     checkpoint_ok=0
 fi
 
@@ -148,7 +148,7 @@ fi
 if [[ "${DO_SWEEP}" -eq 1 ]]; then
     echo
     echo ">>> SWEEP: $(awk "BEGIN{printf \"%.1f\", ${SWEEP_SIZE}/1048576}") MB at loss {0,1,5,10,20}%"
-    echo "    (kB/s here is rough soak goodput to show the loss trend — NOT the §7 benchmark,"
+    echo "    (kB/s here is rough soak goodput to show the loss trend - NOT the §7 benchmark,"
     echo "     which uses proper methodology + TCP/ENet baselines and is owned by feat/bench)"
     printf "  %-6s %-8s %-10s %-8s\n" "loss%" "result" "wall_s" "kB/s"
     for loss in 0 1 5 10 20; do

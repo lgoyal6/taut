@@ -9,7 +9,7 @@ namespace taut {
 // every field is a documented design knob.
 struct Config {
     // The thesis knob (§5.5): retransmit floor well below TCP's ~200 ms Linux minimum.
-    // Safe on a closed mesh, unsafe on the open internet — be able to explain why.
+    // Safe on a closed mesh, unsafe on the open internet - be able to explain why.
     std::chrono::milliseconds rto_floor{25};
 
     // Fixed send window in packets (§5.4). No congestion control in v1 (§5.8).

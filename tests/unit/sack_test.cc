@@ -42,7 +42,7 @@ bool peek(std::span<const std::byte> d, taut::PacketType& type, taut::Class& cls
 } // namespace
 
 // Drop seq 0 exactly once. The receiver gets seqs 1..9, SACKs them, and the sender must fast-
-// retransmit the single gap after ≥ 3 SACKed slots pile up above it — not wait for its RTO,
+// retransmit the single gap after ≥ 3 SACKed slots pile up above it - not wait for its RTO,
 // and not touch the already-received packets above the gap.
 TEST(Sack, FastRetransmitsSingleGap) {
     tlink::TestLink net;
@@ -101,7 +101,7 @@ TEST(Sack, FastRetransmitsSingleGap) {
 }
 
 // Same single-gap scenario with SACK disabled: recovery falls back to the per-packet RTO, and
-// the already-received packets above the gap are retransmitted wastefully too — strictly more
+// the already-received packets above the gap are retransmitted wastefully too - strictly more
 // retransmits than the SACK path, and only after a full RTO wait.
 TEST(Sack, CumulativeOnlyRetransmitsMoreThanSack) {
     tlink::TestLink net;

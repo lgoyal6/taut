@@ -235,7 +235,7 @@ TEST(Rx, ReliableUnorderedDeliversPastGap) {
 }
 
 // The class-0 separate seq space (DESIGN-codec #3): losing every unreliable packet must not
-// stall reliable, ordered delivery — the two never share a cumulative-ack sequence.
+// stall reliable, ordered delivery - the two never share a cumulative-ack sequence.
 TEST(Rx, UnreliableLossDoesNotStallReliable) {
     tlink::TestLink net;
     const auto a = ep(1);

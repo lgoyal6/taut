@@ -30,7 +30,7 @@ struct SwimConfig {
 // Membership gossip rides in the packet PAYLOAD for now (no header/flags changes); the §5.2
 // header-piggyback path is a later merge step. Uses PacketType::{Ping,PingReq,Pong,Join} with
 // Class::Unreliable. Sender identity comes from the transport (`RecvResult::from`), mirroring
-// real SWIM's use of the UDP source address — it is never carried in the payload.
+// real SWIM's use of the UDP source address - it is never carried in the payload.
 //
 // Driven exactly like Session: poll() drains inbound datagrams, tick() advances the
 // time-based state machine off the transport clock. The event loop and the deterministic sim

@@ -26,7 +26,7 @@ TEST(Crc32c, CanonicalCheckValue) {
     EXPECT_EQ(taut::crc32c(as_bytes("123456789")), 0xE3069283u);
 }
 
-// Splitting the input across two incremental updates must equal the one-shot CRC —
+// Splitting the input across two incremental updates must equal the one-shot CRC -
 // this is exactly what the codec's two-chunk CRC (skipping the crc field) relies on.
 TEST(Crc32c, IncrementalMatchesOneShot) {
     const auto data = as_bytes("hello, taut");

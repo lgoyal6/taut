@@ -32,7 +32,7 @@ std::uint64_t ekey(const taut::Endpoint& e) {
     return (static_cast<std::uint64_t>(e.addr_be) << 16) | e.port_be;
 }
 
-// A UdpTransport decorator that can sever the link to a set of peers in BOTH directions —
+// A UdpTransport decorator that can sever the link to a set of peers in BOTH directions -
 // how we model a network partition without touching the shared SimNet (which is owned by
 // feat/core). Blocked outbound datagrams are silently dropped; blocked inbound datagrams are
 // discarded on recv. Symmetric blocking on both endpoints == a bidirectional partition.
@@ -74,7 +74,7 @@ class LinkFilter : public taut::UdpTransport {
     std::unordered_set<std::uint64_t> blocked_;
 };
 
-// A UdpTransport decorator that counts outbound JOIN packets (by decoding each datagram) —
+// A UdpTransport decorator that counts outbound JOIN packets (by decoding each datagram) -
 // how the JoinExchangeTerminates regression test observes the wire without touching SimNet.
 class JoinCounter : public taut::UdpTransport {
   public:
@@ -106,7 +106,7 @@ class JoinCounter : public taut::UdpTransport {
 // N-node SWIM mesh over one SimNet, all-to-all seeded Alive at construction (the SWIM paper's
 // "existing group" assumption). Each node's transport is wrapped in a LinkFilter so tests can
 // partition links; a node can also be "crashed" (we simply stop stepping it, so it answers
-// nothing — an exact process-death model).
+// nothing - an exact process-death model).
 struct Mesh {
     taut::SimNet net;
     std::vector<taut::Endpoint> eps;
@@ -251,7 +251,7 @@ TEST(Swim, IncarnationNumbersRejectStaleSuspicion) {
     EXPECT_EQ(node.state_of(p), taut::MemberState::Alive)
         << "a stale, lower-incarnation suspicion must never override a fresher refutation";
 
-    // Contrast — a suspicion at the *current* incarnation is legitimate and does apply, which
+    // Contrast - a suspicion at the *current* incarnation is legitimate and does apply, which
     // is why the accused must keep bumping its incarnation to stay alive.
     node.apply_rumor(p, taut::MemberState::Suspect, 1);
     EXPECT_EQ(node.state_of(p), taut::MemberState::Suspect);
@@ -270,11 +270,11 @@ TEST(Swim, SelfRefutesByBumpingIncarnation) {
     node.apply_rumor(self, taut::MemberState::Suspect, 1); // suspected again @ our new inc
     EXPECT_EQ(node.my_incarnation(), 2u);
 
-    node.apply_rumor(self, taut::MemberState::Suspect, 0); // stale — no further bump
+    node.apply_rumor(self, taut::MemberState::Suspect, 0); // stale - no further bump
     EXPECT_EQ(node.my_incarnation(), 2u);
 }
 
-// Dead is sticky within an incarnation — at equal or lower incarnation nothing outranks it —
+// Dead is sticky within an incarnation - at equal or lower incarnation nothing outranks it -
 // but a STRICTLY newer incarnation resurrects, because only the subject itself can mint one,
 // making Alive@k+1 first-hand proof of life issued after the death verdict's evidence
 // (v0.1.1 rejoin semantics; v0.1.0 made Dead terminal at any incarnation, so a restarted
@@ -350,8 +350,8 @@ TEST(Swim, DetectsCrashedNode) {
 // Timings are scaled from §5.9's defaults (shorter period, wider suspicion window) purely for
 // determinism: at N=5 the worst-case round-robin detection is ~(N-1)*period, which only
 // reliably precedes a Dead verdict (at ~period + suspicion_timeout) when suspicion_timeout is
-// comfortably above (N-2)*period. The mechanism under test — suspect, refute, reconverge,
-// never confirm-dead — is identical to the T=1 s / 3 s demo; only the clock is compressed.
+// comfortably above (N-2)*period. The mechanism under test - suspect, refute, reconverge,
+// never confirm-dead - is identical to the T=1 s / 3 s demo; only the clock is compressed.
 TEST(Swim, PartitionHealReconverges) {
     taut::SwimConfig cfg;
     cfg.period = 500ms;
@@ -368,7 +368,7 @@ TEST(Swim, PartitionHealReconverges) {
         }
         ASSERT_TRUE(m.all_alive()) << "seed " << seed;
 
-        // Sever the victim from everyone, then heal the instant it is first suspected — so the
+        // Sever the victim from everyone, then heal the instant it is first suspected - so the
         // earliest Dead deadline (relative to the first suspicion) is never reached.
         m.isolate(victim);
         bool ever_dead = false;
@@ -398,13 +398,13 @@ TEST(Swim, PartitionHealReconverges) {
         }
         EXPECT_TRUE(reconverge.has_value()) << "seed " << seed << ": should reconverge after heal";
         EXPECT_FALSE(ever_dead) << "seed " << seed
-                                << ": a reachable node was confirmed dead — invariant 6 violated";
+                                << ": a reachable node was confirmed dead - invariant 6 violated";
         EXPECT_TRUE(m.all_alive()) << "seed " << seed;
     }
 }
 
 // Invariant 6: with steady loss (no partition), refutations always flow, so a live reachable
-// node is NEVER confirmed Dead — even though transient suspicions do occur and get cleared.
+// node is NEVER confirmed Dead - even though transient suspicions do occur and get cleared.
 // Run several seeds so it isn't a single-seed accident.
 TEST(Swim, LiveReachableNodeNeverConfirmedDead) {
     for (std::uint64_t seed : {1u, 2u, 3u, 7u, 99u}) {
@@ -460,7 +460,7 @@ TEST(Swim, JoinLearnsRoster) {
 }
 
 // Regression: a join exchange is exactly one request + one full-snapshot reply. In v0.1.0 the
-// reply was itself a JOIN that got answered with another reply — an infinite JOIN ping-pong
+// reply was itself a JOIN that got answered with another reply - an infinite JOIN ping-pong
 // (states still converged, so no state assertion could catch it; only counting packets does).
 TEST(Swim, JoinExchangeTerminates) {
     taut::SimNet net(9, taut::Impairments{.delay = 10ms});
@@ -472,7 +472,7 @@ TEST(Swim, JoinExchangeTerminates) {
     taut::Swim sb(cb, b, default_cfg(), 2);
 
     sb.join(a);
-    for (int i = 0; i < 500; ++i) { // 10 s virtual — ample time for a ping-pong to blow up
+    for (int i = 0; i < 500; ++i) { // 10 s virtual - ample time for a ping-pong to blow up
         net.advance(20ms);
         sa.poll();
         sb.poll();
@@ -489,7 +489,7 @@ TEST(Swim, JoinExchangeTerminates) {
 // Caught live by tautq's chaos partition scenario: a partition held PAST the suspicion
 // timeout leaves both sides holding Dead verdicts for each other. Without a post-Dead
 // refutation channel the halves never exchange another packet (Dead members are never
-// probed) and the accusations' gossip budgets are long spent — the split is permanent.
+// probed) and the accusations' gossip budgets are long spent - the split is permanent.
 // v0.1.2 probes one random Dead member per period carrying its own Dead rumor; a live
 // accused refutes at inc+1 and resurrects (v0.1.1 ordering), re-merging the halves.
 TEST(Swim, SymmetricPartitionHealsAfterDeadVerdicts) {
@@ -521,7 +521,7 @@ TEST(Swim, SymmetricPartitionHealsAfterDeadVerdicts) {
             healed = m.all_alive();
         }
         EXPECT_TRUE(healed) << "seed " << seed
-                            << ": both sides must reconverge after Dead verdicts — the "
+                            << ": both sides must reconverge after Dead verdicts - the "
                                "post-Dead refutation channel is what makes this possible";
     }
 }
@@ -546,7 +546,7 @@ TEST(Swim, RestartedNodeRejoins) {
         }
         ASSERT_TRUE(m.everyone_sees(victim, taut::MemberState::Dead)) << "seed " << seed;
 
-        // Restart: a brand-new Swim on the same endpoint — empty membership, incarnation 0 —
+        // Restart: a brand-new Swim on the same endpoint - empty membership, incarnation 0 -
         // that knows only the introducer. (The transport keeps its inbound queue: late
         // packets addressed to the dead process greeting the new one is exactly real life.)
         m.nodes[victim] = std::make_unique<taut::Swim>(*m.links[victim], m.eps[victim],

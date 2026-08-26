@@ -17,7 +17,7 @@ EventLoop::EventLoop() {
     eventfd_ = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (epfd_ >= 0 && eventfd_ >= 0) {
         epoll_event ev{};
-        ev.events = EPOLLIN; // level-triggered (no EPOLLET) — correctness-first (D13)
+        ev.events = EPOLLIN; // level-triggered (no EPOLLET) - correctness-first (D13)
         ev.data.fd = eventfd_;
         ::epoll_ctl(epfd_, EPOLL_CTL_ADD, eventfd_, &ev);
     }

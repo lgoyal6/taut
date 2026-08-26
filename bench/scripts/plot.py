@@ -234,7 +234,7 @@ def make_plots(s_rr, by_over, by_thr, data_dir):
             med = [agg(by_over[k][l])[0] for l in losses]
             ax.plot(losses, med, marker="s", label=SERIES_LABEL[k], color=colors.get(k))
         ax.axhline(1.0, color="gray", ls="--", alpha=0.6, label="ideal (1.0)")
-        ax.set_title("Bandwidth overhead vs loss (sustained load) — taut pays for its tail")
+        ax.set_title("Bandwidth overhead vs loss (sustained load) - taut pays for its tail")
         ax.set_xlabel("loss (%, each direction)")
         ax.set_ylabel("bytes on wire / goodput bytes")
         ax.grid(True, alpha=0.3)
@@ -250,7 +250,7 @@ def make_plots(s_rr, by_over, by_thr, data_dir):
         vals = [agg(by_thr[k])[0] for k in keys]
         ax.bar([SERIES_LABEL[k] for k in keys], vals,
                color=[colors.get(k) for k in keys])
-        ax.set_title("Clean-link (0% loss) throughput — TCP/ENet win")
+        ax.set_title("Clean-link (0% loss) throughput - TCP/ENet win")
         ax.set_ylabel("goodput (Mbit/s)")
         ax.grid(True, axis="y", alpha=0.3)
         for i, v in enumerate(vals):

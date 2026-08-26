@@ -27,7 +27,7 @@ option(TAUT_BUILD_FUZZERS "Build libFuzzer targets (clang only)" OFF)
 option(TAUT_INSTALL "Generate install and package-config rules" ${TAUT_DEFAULT_EXTRAS})
 
 # The core library. CORE modules (codec, window, rto, timers, rx, flow, swim, loop)
-# are added source-by-source through the PLAN §2 module loop — each behind its own
+# are added source-by-source through the PLAN §2 module loop - each behind its own
 # design brief + comprehension gate. For now it carries only version.cc plus the
 # public API sketch headers (Week 1 S1).
 add_library(taut STATIC
@@ -84,7 +84,7 @@ if(TAUT_BUILD_FUZZERS)
     add_subdirectory(fuzz)
 endif()
 
-# ---- Benchmarks (§7) — opt-in; not part of the default dev/CI loop ---------------------
+# ---- Benchmarks (§7) - opt-in; not part of the default dev/CI loop ---------------------
 # taut vs kernel-TCP vs ENet latency matrix. Off by default (ENet FetchContent needs network
 # at configure time; sanitizers would corrupt the numbers). Configure a release build with
 # -DTAUT_BUILD_BENCH=ON to build bench/latency_bench, tcp_baseline, enet_baseline.

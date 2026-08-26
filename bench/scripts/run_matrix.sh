@@ -6,7 +6,7 @@
 #   - taut, each class in TAUT_CLASSES  latency_bench
 # and captures per-run latency percentiles (bench/data/latency.csv), send-side counts
 # (send.csv) and interface-level bytes-on-wire (wire.csv). Also runs a 0%-loss saturating
-# throughput point (throughput.csv) — the clean-link axis where TCP/ENet are expected to win.
+# throughput point (throughput.csv) - the clean-link axis where TCP/ENet are expected to win.
 #
 # Re-execs under sudo (netns/tc need NET_ADMIN). The binaries do not need root; they inherit
 # it only because `ip netns exec` runs them in the namespace.
@@ -145,7 +145,7 @@ fi
 
 # ---- optional: open-loop Poisson sustained-load latency (RUN_OPENLOOP=1) ---------------
 # Shows delivery ratio + coordinated-omission-corrected latency; TCP/ENet saturate under
-# loss (received << offered) — that divergence is a finding, not a bug (see BENCHMARKS.md).
+# loss (received << offered) - that divergence is a finding, not a bug (see BENCHMARKS.md).
 if [[ "${RUN_OPENLOOP:-0}" == "1" ]]; then
     for loss in ${LOSSES}; do
         apply_netem "${loss}"
@@ -156,7 +156,7 @@ if [[ "${RUN_OPENLOOP:-0}" == "1" ]]; then
     done
 fi
 
-# ---- clean-link (0%) saturating throughput — the axis where TCP/ENet win ---------------
+# ---- clean-link (0%) saturating throughput - the axis where TCP/ENet win ---------------
 if [[ "${RUN_THROUGHPUT:-1}" == "1" ]]; then
     apply_netem 0
     echo "=== throughput @ 0% loss (RTT ${RTT}ms) ==="

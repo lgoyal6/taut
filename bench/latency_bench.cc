@@ -1,13 +1,13 @@
 // taut message-latency load generator (§7). One binary, several modes over a symmetric pair
 // of taut Sessions on real UDP sockets. Roles: --role receiver binds (bind,port); --role
 // sender binds (bind,port+1) and targets (addr,port). The taut Session (poll/tick) has no
-// epoll driver yet, so both roles pump poll()+tick() in a tight loop — exactly what the
+// epoll driver yet, so both roles pump poll()+tick() in a tight loop - exactly what the
 // future Node event loop will do per iteration.
 //
 // Modes:
 //   rr         : closed-loop request-reply (one outstanding). Client sends a 512 B request,
 //                server echoes it, client records the round-trip. This is the headline
-//                latency-vs-loss probe (netperf TCP_RR style) — rate-independent, unbiased,
+//                latency-vs-loss probe (netperf TCP_RR style) - rate-independent, unbiased,
 //                and it isolates per-message recovery latency (RTO + head-of-line) from
 //                throughput throttling. See docs/BENCHMARKS.md for why this replaces open-loop
 //                Poisson as the headline.
@@ -37,7 +37,7 @@
 namespace {
 
 // Decorates a UdpTransport to count datagrams/bytes actually put on (and taken off) the
-// socket — including retransmits and pure acks. Lets the taut sender report its app-level
+// socket - including retransmits and pure acks. Lets the taut sender report its app-level
 // wire cost (UDP payload; IP/UDP headers are added by the kernel and show up in wire.csv).
 class CountingTransport : public taut::UdpTransport {
   public:

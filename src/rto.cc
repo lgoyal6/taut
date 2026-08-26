@@ -8,7 +8,7 @@ namespace taut {
 namespace {
 constexpr double kGranularityMs = 1.0;  // clock granularity G
 constexpr double kInitialRtoMs = 200.0; // before the first sample (deviation from RFC's 1 s;
-                                        // this is a low-latency mesh — see docs/DESIGN-rto.md)
+                                        // this is a low-latency mesh - see docs/DESIGN-rto.md)
 } // namespace
 
 RttEstimator::RttEstimator(std::chrono::milliseconds floor, std::chrono::milliseconds max)

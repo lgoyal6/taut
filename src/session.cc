@@ -47,7 +47,7 @@ bool Session::send(Class cls, ByteSpan payload) {
     }
 
     // Reliable: queue for the pump. Bound the queue so a stalled window can't grow memory
-    // without bound — that is the backpressure signal to the app.
+    // without bound - that is the backpressure signal to the app.
     if (pending_.size() >= cfg_.window_pkts) {
         return false;
     }
@@ -216,7 +216,7 @@ void Session::poll() {
     while (auto r = tx_.recv(buf)) {
         Packet p{};
         if (decode(std::span<const std::byte>(buf.data(), r->size), p) != DecodeError::Ok) {
-            continue; // malformed / corrupt — drop
+            continue; // malformed / corrupt - drop
         }
         // Update the send window only from a non-stale ack (cum_ack never goes backwards),
         // so a reordered older ack can't clobber it with a stale window (RFC 793 WL rule).
@@ -281,7 +281,7 @@ void Session::handle_unreliable(const Packet& p) {
         ur_seen_ = 0;
     }
     if (s < ur_base_) {
-        return; // below the window — treat as a stale duplicate, drop
+        return; // below the window - treat as a stale duplicate, drop
     }
     if (s - ur_base_ >= 64) {
         const std::uint32_t shift = s - ur_base_ - 63; // slide so s sits at the window top
@@ -303,14 +303,14 @@ void Session::handle_unreliable(const Packet& p) {
 void Session::handle_reliable(const Packet& p) {
     const std::uint32_t s = p.seq;
     if (s < rcv_next_) {
-        // Already delivered (retransmit or network dup) — drop, but still ack so the sender
+        // Already delivered (retransmit or network dup) - drop, but still ack so the sender
         // learns our cum_ack/window.
     } else if (s == rcv_next_) {
         if (deliver_reliable(p.cls, p.payload)) {
             ++rcv_next_;
             flush_reassembled();
         }
-        // else: no buffer room (receiver full) — leave the gap; the sender retransmits later.
+        // else: no buffer room (receiver full) - leave the gap; the sender retransmits later.
     } else { // s > rcv_next_ : out of order
         if (reasm_.find(s) == reasm_.end() && has_buffer_space()) {
             if (p.cls == Class::ReliableUnordered) {
@@ -353,7 +353,7 @@ void Session::flush_reassembled() {
         RxItem& e = it->second;
         if (!e.delivered) {
             // Class-2 payload now in order: moving it to the app (or the app queue) keeps
-            // occupancy flat, so it always fits — no buffer check needed.
+            // occupancy flat, so it always fits - no buffer check needed.
             if (app_ready_) {
                 emit_to_app(e.cls, e.data);
             } else {
