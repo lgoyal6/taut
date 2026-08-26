@@ -16,7 +16,21 @@
 </head>
 <body>
 
-<header class="gut">
+<nav class="topbar">
+  <a class="brand" href="https://lakshgoyal.com">Laksh Goyal<span>.</span></a>
+  <div class="navlinks">
+    <a href="https://github.com/lgoyal6/taut">GitHub</a>
+    <a href="https://www.linkedin.com/in/lakshgoyal">LinkedIn</a>
+  </div>
+</nav>
+<nav class="tabs" aria-label="Sections">
+    <a href="#sec-home">Home</a>
+    <a href="#sec-feel">Feel it</a>
+    <a href="#sec-measure">Measure it</a>
+    <a href="#sec-source">Source</a>
+</nav>
+
+<header id="sec-home" class="gut">
   <div>
     <div class="eyebrow">reliable-udp transport &middot; c++20 &middot; zero-dependency core &middot;
       <span class="led-label" id="led-label">loading engine&hellip;</span></div>
@@ -41,7 +55,7 @@
   </div>
 </header>
 
-<section id="feel" class="gut">
+<section class="gut" id="sec-feel">
   <div class="sec-bar">
     <span class="no">01</span><h2>Feel it</h2>
     <span class="lede">your cursor is the message stream; two receivers chase it through identically seeded links, one knob apart</span>
@@ -67,7 +81,7 @@
   that's left, and that is what you feel.</i></p>
 </section>
 
-<section id="measure" class="gut">
+<section class="gut" id="sec-measure">
   <div class="sec-bar">
     <span class="no">02</span><h2>Measure it</h2>
     <span class="lede">same protocol, same seed; 500 messages race once per floor, deterministically</span>
@@ -96,7 +110,7 @@
   </div>
 </section>
 
-<section id="saw" class="gut">
+<section class="gut" id="sec-source">
   <div class="sec-bar">
     <span class="no">03</span><h2>What you just saw</h2>
     <span class="lede">every behavior above is a specific piece of the library</span>
@@ -146,5 +160,6 @@
 
 <script src="demo/taut.js"></script>
 <script src="app.js"></script>
+<script src="nav.js"></script>
 </body>
 </html>
