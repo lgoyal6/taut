@@ -53,7 +53,7 @@ bool peek(std::span<const std::byte> d, taut::PacketType& type, std::uint16_t& a
 } // namespace
 
 // A receiver that stops draining fills its buffer, drives the advertised window to zero, and
-// stalls the sender — then resumes with no deadlock, no buffer overflow, and every message
+// stalls the sender - then resumes with no deadlock, no buffer overflow, and every message
 // delivered in order. Invariants 1, 2, 3, 5 (§6.4).
 TEST(Flow, StalledReceiverNoDeadlockNoOverflow) {
     taut::SimNet net(2026, taut::Impairments{.loss = 0.02, .delay = 5ms, .jitter = 6ms});
@@ -113,7 +113,7 @@ TEST(Flow, StalledReceiverNoDeadlockNoOverflow) {
 }
 
 // The advertised window shrinks to zero as the stalled buffer fills, and reopens when the app
-// drains — visible on both the receiver's side and the sender's belief.
+// drains - visible on both the receiver's side and the sender's belief.
 TEST(Flow, AdvWindowShrinksToZeroAndReopens) {
     tlink::TestLink net;
     const auto a = ep(1);
@@ -163,7 +163,7 @@ TEST(Flow, AdvWindowShrinksToZeroAndReopens) {
 }
 
 // Persist-probe liveness (§5.6): even when the window-reopening ack is lost, the sender's
-// persist timer re-probes and recovers — no deadlock.
+// persist timer re-probes and recovers - no deadlock.
 TEST(Flow, ZeroWindowProbeRecoversFromLostReopen) {
     tlink::TestLink net;
     const auto a = ep(1);

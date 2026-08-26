@@ -1,6 +1,6 @@
 # Global sanitizer wiring. Set TAUT_SANITIZE to a comma-separated list
 # (e.g. "address,undefined") and every target in the build is instrumented and linked
-# consistently — required for ASan/UBSan to work across the whole process. The `dev`
+# consistently - required for ASan/UBSan to work across the whole process. The `dev`
 # preset sets address,undefined; release leaves it empty.
 set(TAUT_SANITIZE "" CACHE STRING "Comma-separated sanitizers, e.g. address,undefined")
 

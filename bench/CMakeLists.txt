@@ -1,6 +1,6 @@
 # Benchmark binaries (§7). Enabled with -DTAUT_BUILD_BENCH=ON (see root CMakeLists); Linux
 # only (real sockets + ENet). Kept out of the default dev/CI build so the core loop stays
-# fast and network-free. Run these from a *release* build — sanitizers would dominate the
+# fast and network-free. Run these from a *release* build - sanitizers would dominate the
 # latency numbers.
 include(FetchContent)
 

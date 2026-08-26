@@ -1,8 +1,8 @@
 // C ABI for the browser demo. Runs real Sessions over the deterministic SimNet
 // with a virtual clock, so a multi-second lossy transfer completes in real
 // milliseconds. Two surfaces:
-//   tt_run          — one call = one full batch experiment, JSON result
-//   tt_feel_*       — a persistent pair of experiments (rto floor 25ms vs 200ms)
+//   tt_run          - one call = one full batch experiment, JSON result
+//   tt_feel_*       - a persistent pair of experiments (rto floor 25ms vs 200ms)
 //                     stepped in real time from the page's animation loop
 // Returned strings are valid until the next call into the same surface.
 
@@ -154,7 +154,7 @@ const char* tt_run(double seed, double loss_pct, int delay_ms, int jitter_ms,
 // tt_feel_*: the cursor-echo instrument. Two independent experiments share one
 // virtual clock cadence; each is a real Session pair over its own SimNet. The
 // nets are seeded identically, so the links are statistically identical, but
-// once retransmit schedules diverge the per-packet RNG draws diverge too —
+// once retransmit schedules diverge the per-packet RNG draws diverge too -
 // same weather, not the same raindrops.
 // ---------------------------------------------------------------------------
 

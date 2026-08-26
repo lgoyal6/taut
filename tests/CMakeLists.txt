@@ -11,7 +11,7 @@ FetchContent_Declare(
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-# Build/link/parse sanity smoke (no framework) — kept as a fast canary.
+# Build/link/parse sanity smoke (no framework) - kept as a fast canary.
 add_executable(taut_smoke smoke.cc)
 target_link_libraries(taut_smoke PRIVATE taut taut_warnings)
 add_test(NAME smoke COMMAND taut_smoke)

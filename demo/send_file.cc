@@ -1,9 +1,9 @@
-// send_file — transfer a file to recv_file over taut class 2 (ReliableOrdered).
+// send_file - transfer a file to recv_file over taut class 2 (ReliableOrdered).
 //
 // The file is read into memory, chunked into <= kChunk-byte messages, and streamed over a
 // single Session. Message 0 is an 8-byte little-endian length header (see demo/file_xfer.h);
 // messages 1..N are the file. We fill the send window, then poll()/tick() the Session until
-// every message is acknowledged (in_flight() == 0), which — with cumulative acks — means the
+// every message is acknowledged (in_flight() == 0), which - with cumulative acks - means the
 // receiver has delivered the whole file in order. sha256 of the sent bytes is printed so it
 // can be compared with recv_file's.
 //
@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
             const std::size_t n = std::min(demo::kChunk, data.size() - off);
             if (!session.send(taut::Class::ReliableOrdered,
                               std::span<const std::byte>(data.data() + off, n))) {
-                return; // window full — drain acks and retry next iteration
+                return; // window full - drain acks and retry next iteration
             }
             off += n;
         }

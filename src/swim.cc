@@ -11,7 +11,7 @@ namespace taut {
 namespace {
 
 // Endpoint identity key (same shape SimNet uses internally). addr_be occupies the high bits,
-// port_be the low 16 — collision-free for IPv4 addr + port.
+// port_be the low 16 - collision-free for IPv4 addr + port.
 std::uint64_t key(const Endpoint& e) {
     return (static_cast<std::uint64_t>(e.addr_be) << 16) | e.port_be;
 }
@@ -58,7 +58,7 @@ std::uint32_t get_u32(std::span<const std::byte> b, std::size_t off) {
 // Incarnation precedence (SWIM §4.2 + v0.1.1 rejoin). Records are ordered lexicographically
 // by (incarnation, state), state ranked Alive < Suspect < Dead. Within one incarnation,
 // evidence only accumulates toward death: Suspect beats Alive, Dead beats both, and Dead is
-// unbeatable — a suspicion sticks until the accused bumps its own incarnation. A strictly
+// unbeatable - a suspicion sticks until the accused bumps its own incarnation. A strictly
 // newer incarnation beats anything older, INCLUDING Dead: only the subject itself can mint a
 // higher incarnation, so Alive@k+1 is first-hand proof of life issued after the Dead@k
 // verdict's evidence. This replaces v0.1.0's "Dead is terminal at any incarnation", which
@@ -258,7 +258,7 @@ void Swim::poll() {
         const Endpoint from = r->from; // r is engaged here (loop guard); capture before gossip loop
         Packet p{};
         if (decode(std::span<const std::byte>(buf.data(), r->size), p) != DecodeError::Ok) {
-            continue; // malformed / corrupt — drop
+            continue; // malformed / corrupt - drop
         }
         if (p.type != PacketType::Ping && p.type != PacketType::PingReq &&
             p.type != PacketType::Pong && p.type != PacketType::Join) {
@@ -274,7 +274,7 @@ void Swim::poll() {
         subject.port_be = get_u16(body, 8);
         const std::uint16_t count = get_u16(body, 10);
 
-        // A packet from a member we believe Dead: make sure it hears the accusation — its
+        // A packet from a member we believe Dead: make sure it hears the accusation - its
         // death rumor's budget is long spent, and only the accused can mint the higher
         // incarnation that resurrects it (v0.1.2, same partition-heal gap as above).
         if (auto mit = members_.find(key(from)); mit != members_.end() &&
@@ -310,7 +310,7 @@ void Swim::poll() {
             break;
         case PacketType::Join:
             // A JOIN whose subject is its own sender is a request (join() names itself);
-            // a reply names the joiner — i.e. the recipient — as subject.
+            // a reply names the joiner - i.e. the recipient - as subject.
             handle_join(from, probe_id, /*request=*/subject == from);
             break;
         default:
@@ -359,7 +359,7 @@ void Swim::handle_join(const Endpoint& from, std::uint32_t joiner_inc, bool requ
     // The JOIN itself is first-hand proof the sender is alive at its stated incarnation, so
     // route it through the ordinary merge (v0.1.0 unconditionally adopted/gossiped Alive here,
     // disagreeing with this node's own table when the joiner was recorded Dead). A REJOINING
-    // node restarts at incarnation 0, which does not yet beat its Dead@k record — the
+    // node restarts at incarnation 0, which does not yet beat its Dead@k record - the
     // full-snapshot reply shows it it is believed Dead@k, and the standard refutation path
     // re-announces it at k+1, which now wins (see overrides()).
     apply_rumor(from, MemberState::Alive, joiner_inc);
@@ -419,7 +419,7 @@ void Swim::expire_suspects(TimePoint now) {
 // probed, so no packet crosses the healed link, and the accused's death rumor spent its
 // gossip budget INTO the partition, so even incidental contact would not tell it to
 // refute. tautq's chaos partition scenario caught exactly this as permanently-stalled
-// jobs. Each period we ping one random Dead member with its own Dead rumor re-queued —
+// jobs. Each period we ping one random Dead member with its own Dead rumor re-queued -
 // if it is actually alive it refutes at inc+1, which resurrects it under the v0.1.1
 // ordering, and normal gossip re-merges the halves.
 void Swim::probe_one_dead() {
@@ -435,7 +435,7 @@ void Swim::probe_one_dead() {
     }
     const Member& t = *dead[rng_() % dead.size()];
     if (rumors_.find(key(t.addr)) == rumors_.end()) {
-        queue_rumor(t.addr, MemberState::Dead, t.incarnation); // "you are dead" — refute it
+        queue_rumor(t.addr, MemberState::Dead, t.incarnation); // "you are dead" - refute it
     }
     send_swim(PacketType::Ping, t.addr, next_probe_id_++, t.addr, /*full_snapshot=*/false);
 }

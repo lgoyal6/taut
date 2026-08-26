@@ -1,5 +1,5 @@
 // Integration test for the epoll event loop + real UDP transport (Linux). Runs entirely
-// in one process — a client transport and a server transport on loopback — so it exercises
+// in one process - a client transport and a server transport on loopback - so it exercises
 // epoll_wait, socket drain, and dispatch deterministically, with no cross-process race.
 #include "taut/loop.h"
 #include "taut/transport.h"

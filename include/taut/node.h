@@ -12,7 +12,7 @@
 namespace taut {
 
 // Public transport node (§5.1). Single-threaded by design (§5.7); no exceptions cross
-// this boundary — fallible calls return bool/expected-style results. This is the Week 1
+// this boundary - fallible calls return bool/expected-style results. This is the Week 1
 // S1 API *sketch*: declarations only. The implementation lands module-by-module through
 // the PLAN §2 loop (loop.cc / transport.cc), each behind its comprehension gate.
 class Node {
@@ -35,7 +35,7 @@ class Node {
     PeerId add_peer(std::string_view addr, std::uint16_t port);
 
     // Enqueue a message for delivery under the given reliability class.
-    // Returns false on backpressure (window full) — the caller decides what to do.
+    // Returns false on backpressure (window full) - the caller decides what to do.
     bool send(PeerId peer, Class cls, ByteSpan payload);
 
     void on_message(MessageHandler handler);

@@ -27,7 +27,7 @@ enum class PacketType : std::uint8_t {
 };
 
 // Header flag bits (§5.2). SACK (bit0) is parsed by this codec; membership (bit1) and
-// keyed-CRC (bit2) are not yet handled — a decoder rejects those bits as Unsupported and
+// keyed-CRC (bit2) are not yet handled - a decoder rejects those bits as Unsupported and
 // encode refuses to emit them.
 enum class Flag : std::uint8_t {
     SackPresent = 0x01,
@@ -35,7 +35,7 @@ enum class Flag : std::uint8_t {
     KeyedCrc = 0x04,
 };
 
-// Why decode rejected a datagram — makes fuzz failures categorizable.
+// Why decode rejected a datagram - makes fuzz failures categorizable.
 enum class DecodeError : std::uint8_t {
     Ok = 0,
     TooShort,      // fewer bytes than the base header
@@ -65,7 +65,7 @@ struct Packet {
 };
 
 // Serialize `pkt` into `out`. Returns bytes written, or 0 on failure (buffer too small,
-// payload > 65535 or datagram > 1200, or an unsupported flag bit set — only SackPresent is
+// payload > 65535 or datagram > 1200, or an unsupported flag bit set - only SackPresent is
 // emittable). When Flag::SackPresent is set, the 8-byte bitmap is written at offset 21.
 // The CRC is computed and written.
 std::size_t encode(const Packet& pkt, std::span<std::byte> out);

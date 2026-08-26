@@ -1,4 +1,4 @@
-// recv_file — receive a file from send_file over taut class 2 (ReliableOrdered).
+// recv_file - receive a file from send_file over taut class 2 (ReliableOrdered).
 //
 // The first class-2 message is an 8-byte little-endian length header; the rest are the file,
 // delivered in order (class 2 guarantees exactly-once, in-order delivery), so we simply

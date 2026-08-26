@@ -1,6 +1,6 @@
 // ENet baseline for the latency matrix (§7). Same 512 B workload over an ENet reliable channel
-// (channel 0, ENET_PACKET_FLAG_RELIABLE). ENet is the closest existing peer to taut — reliable
-// messages over UDP with its own ARQ and RTT-based retransmit — so it is the more honest "did
+// (channel 0, ENET_PACKET_FLAG_RELIABLE). ENet is the closest existing peer to taut - reliable
+// messages over UDP with its own ARQ and RTT-based retransmit - so it is the more honest "did
 // you actually beat a real library" comparison than TCP alone. One ENet packet == one message
 // (no length prefix). Modes: rr (headline round-trip probe), latency (open-loop Poisson),
 // throughput (clean-link goodput).

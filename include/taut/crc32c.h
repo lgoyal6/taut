@@ -14,7 +14,7 @@ namespace taut {
 // One-shot: CRC of a byte span.
 std::uint32_t crc32c(std::span<const std::byte> data);
 
-// Incremental API — used by the codec's two-chunk CRC (bytes before the crc field,
+// Incremental API - used by the codec's two-chunk CRC (bytes before the crc field,
 // then 4 zero bytes, then bytes after). Usage:
 //   auto s = crc32c_init();
 //   s = crc32c_update(s, chunk_a);

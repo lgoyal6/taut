@@ -123,7 +123,7 @@ DecodeError decode(std::span<const std::byte> in, Packet& out) {
     // Read the SACK-present bit to size the packet before the CRC check (the field is at
     // offset 3, always within the 21 B we've already length-checked). A corrupted bit0 makes
     // header_len/total wrong, so decode fails as LengthOverrun or, if sizes still line up,
-    // BadCrc — never a misparse (see DESIGN-codec.md check-order note).
+    // BadCrc - never a misparse (see DESIGN-codec.md check-order note).
     const std::uint8_t flags = load_u8(in, 3);
     const bool sack = (flags & static_cast<std::uint8_t>(Flag::SackPresent)) != 0;
     const std::size_t header_len = kBaseHeaderSize + (sack ? kSackSize : 0);
@@ -139,7 +139,7 @@ DecodeError decode(std::span<const std::byte> in, Packet& out) {
 
     // Verify integrity before trusting any other field: CRC over [0,17) + 4 zero bytes
     // (the zeroed crc field) + [21, total). The [21,total) chunk covers the SACK section and
-    // payload alike. Uses the incremental API (D11) — no copy.
+    // payload alike. Uses the incremental API (D11) - no copy.
     const std::uint32_t stored_crc = load_u32_le(in, kCrcOffset);
     static constexpr std::array<std::byte, 4> kZeroCrc{};
     std::uint32_t crc = crc32c_init();

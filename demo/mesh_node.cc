@@ -1,4 +1,4 @@
-// mesh_node — a 5-node SWIM membership demo on the deterministic in-process SimNet
+// mesh_node - a 5-node SWIM membership demo on the deterministic in-process SimNet
 // (§5.9 deliverable). No sockets/epoll: one virtual clock, five Swim instances, seeded so the
 // run is byte-reproducible. It converges the mesh, partitions one node, and heals it, printing
 // the live membership table and the measured time-to-detect / time-to-reconverge.
@@ -38,7 +38,7 @@ std::uint64_t ekey(const taut::Endpoint& e) {
     return (static_cast<std::uint64_t>(e.addr_be) << 16) | e.port_be;
 }
 
-// See tests/unit/swim_test.cc — a transport decorator that severs links in both directions to
+// See tests/unit/swim_test.cc - a transport decorator that severs links in both directions to
 // model a partition, without touching the shared SimNet.
 class LinkFilter : public taut::UdpTransport {
   public:

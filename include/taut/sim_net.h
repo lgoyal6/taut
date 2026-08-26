@@ -25,7 +25,7 @@ struct Impairments {
 class SimNet;
 
 // One endpoint on a SimNet, satisfying UdpTransport. Created via SimNet::endpoint; its
-// clock and I/O are the SimNet's. fd() is -1 (not epoll-pollable — sim tests pump manually).
+// clock and I/O are the SimNet's. fd() is -1 (not epoll-pollable - sim tests pump manually).
 class SimEndpoint : public UdpTransport {
   public:
     std::size_t send(const Endpoint& to, std::span<const std::byte> data) override;

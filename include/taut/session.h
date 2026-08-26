@@ -21,13 +21,13 @@ namespace taut {
 // Reliable session with a single peer over a UdpTransport. Covers the send-buffer ring +
 // cumulative acks + SACK/fast-retransmit + RTO retransmit (send path), the three reliability
 // classes on the receive path (§5.3), and receiver-driven flow control with a zero-window
-// persist probe (§5.6). Driven by poll() (process inbound) and tick() (fire timers) — the
+// persist probe (§5.6). Driven by poll() (process inbound) and tick() (fire timers) - the
 // real event loop and the deterministic sim harness both just call those.
 //
 // Wire note: cum_ack here means "next expected sequence" (lowest reliable seq not yet
 // received), i.e. the TCP-style ack convention, which handles gaps unambiguously; this
 // refines PLAN §5.2's "highest received" wording (see docs/DESIGN-window.md). Consequently a
-// SACK bit i marks reliable seq (cum_ack + 1 + i) — the seq at cum_ack is by definition the
+// SACK bit i marks reliable seq (cum_ack + 1 + i) - the seq at cum_ack is by definition the
 // gap the receiver is still missing.
 class Session {
   public:

@@ -1,5 +1,5 @@
 // Minimal echo server over the taut event loop (Week 1 S3 skeleton). Binds a UDP socket
-// and echoes every datagram back to its sender. No reliability yet — under loss, drops
+// and echoes every datagram back to its sender. No reliability yet - under loss, drops
 // are expected. Ctrl-C to stop.
 #include <cstdint>
 #include <cstdio>

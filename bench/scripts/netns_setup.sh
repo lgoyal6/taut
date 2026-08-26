@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# netns_setup.sh — the PLAN §6.5 fault-injection fixture.
+# netns_setup.sh - the PLAN §6.5 fault-injection fixture.
 #
 # Builds a veth pair spanning two network namespaces and applies a symmetric netem
 # impairment (loss / delay+jitter / reorder / duplicate) to BOTH directions, with
@@ -114,7 +114,7 @@ do_up() {
     offloads_off
     apply_netem add
 
-    echo "netns_setup: up — ${NS_A}(${IP_A}) <-> ${NS_B}(${IP_B}), netem [$(netem_args)] each way"
+    echo "netns_setup: up - ${NS_A}(${IP_A}) <-> ${NS_B}(${IP_B}), netem [$(netem_args)] each way"
 }
 
 do_netem() {
