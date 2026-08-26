@@ -1,7 +1,7 @@
 // taut demo: the real library (wasm) on two surfaces.
-//   01 FEEL IT   — tt_feel_*: a persistent Session pair per RTO floor, stepped
+//   01 FEEL IT   - tt_feel_*: a persistent Session pair per RTO floor, stepped
 //                  from the animation loop; your cursor samples are the messages.
-//   02 MEASURE   — tt_run: one deterministic 500-message race per floor.
+//   02 MEASURE   - tt_run: one deterministic 500-message race per floor.
 
 let run = null, feelInit = null, feelSend = null, feelStep = null;
 let ready = false;
@@ -101,7 +101,7 @@ function tick(now) {
   if (ready && !reduced && now - lastUser > 2500) {
     const t = now / 1000;
     target = { x: .5 + .38 * Math.sin(t * .9), y: .5 + .3 * Math.sin(t * 1.5 + 1.2) };
-    hint.textContent = 'autopilot — move your cursor to take over';
+    hint.textContent = 'autopilot: move your cursor to take over';
     hint.style.opacity = .85;
   }
   if (ready && target && now - lastSample >= SAMPLE_MS) {
