@@ -1,3 +1,12 @@
+<a href="https://lgoyal6.github.io/taut/">
+  <img alt="taut - open the live demo" src="docs/og.png">
+</a>
+
+**[Open the live demo](https://lgoyal6.github.io/taut/)** - The real
+protocol code in your tab: your cursor becomes the message stream, and two receivers
+chase it through the same lossy link, a 25 ms retransmit floor against the kernel's
+200 ms. That one covers the transport; the recording above covers membership.
+
 # taut
 
 A purpose-built reliable-UDP transport for small-message meshes on lossy networks:
@@ -12,11 +21,6 @@ nodes gossiping, one partitioned away, 1020 ms to the first SUSPECT and 2020 ms
 to reconverge after the heal, with the reachable node never falsely confirmed
 dead. Deterministic by construction, so those numbers are the same on macOS and
 Linux. Reproduce with `./docs/demo-setup.sh && vhs docs/demo.tape`.
-
-**Live demo:** [lgoyal6.github.io/taut](https://lgoyal6.github.io/taut/), the real
-protocol code in your tab: your cursor becomes the message stream, and two receivers
-chase it through the same lossy link, a 25 ms retransmit floor against the kernel's
-200 ms. That one covers the transport; the recording above covers membership.
 
 ## Thesis
 
