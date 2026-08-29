@@ -10,3 +10,6 @@ compile_commands.json
 /wt-bench/
 /wt-swim/
 /wt-infra/
+
+# graphify knowledge graph (local index, not source)
+graphify-out/
