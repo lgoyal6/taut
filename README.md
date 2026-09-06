@@ -161,6 +161,37 @@ unit-test against taut on any platform. The real UDP transport and the epoll
 loop are **Linux-only**; the codec, CRC, RTO estimator, timers, SWIM and SimNet
 are portable, which is enough to build and test against on macOS.
 
+A whole program rather than a fragment lives in
+[`examples/telemetry`](examples/telemetry): 500 readings pushed across a 20 % loss
+link on class 2, arriving exactly once and in order, with the retransmits and the
+backpressure stalls counted so you can see what the library absorbed on your
+behalf. It is deliberately **not** part of this build - it configures on its own
+against an installed taut, because an in-tree `add_subdirectory` would prove
+nothing about the package you actually ship. CI runs exactly this sequence on
+every push, and the example exits nonzero if any of its own invariants disagree:
+
+```bash
+cmake -S . -B build/inst -DCMAKE_BUILD_TYPE=Release
+cmake --build build/inst --target taut
+cmake --install build/inst --prefix /tmp/taut-prefix
+cmake -S examples/telemetry -B /tmp/telemetry -DCMAKE_PREFIX_PATH=/tmp/taut-prefix
+cmake --build /tmp/telemetry && /tmp/telemetry/telemetry
+```
+
+```
+sent 500 readings on class 2 across a 20% loss link
+delivered 500, in order: yes, duplicates: none
+retransmits the application never saw: 338
+backpressure stalls (send window full): 245
+class 0 heartbeats: 10 offered, 8 arrived (loss here is allowed)
+OK
+```
+
+Those numbers are the same on every run and every platform: SimNet draws its
+impairments from a seeded engine, so a given seed is byte-identical wherever you run
+it. The transcript above is the default seed, 7, which is what CI runs; pass another
+as `telemetry <seed>` and you get a different but equally repeatable run.
+
 ## Build
 
 Requires clang 17+, CMake ≥ 3.24, and Ninja - the presets name that generator and
