@@ -29,6 +29,7 @@ add_executable(taut_unit
     unit/rx_test.cc
     unit/flow_test.cc
     unit/swim_test.cc
+    unit/drain_bound_test.cc
 )
 # The event-loop integration test needs epoll → Linux only.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

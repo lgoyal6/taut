@@ -22,6 +22,9 @@ struct SwimConfig {
     std::chrono::milliseconds suspicion_timeout{3000}; // Suspect -> Dead
     std::uint32_t k = 3;                               // indirect-probe fan-out
     double gossip_factor = 3.0;                        // per-rumor send budget = ceil(factor*ln N)
+    // Same starvation bound as Config::max_recv_per_poll: an unbounded drain lets one
+    // chatty peer hold poll() and stall the failure detector's own tick().
+    std::uint32_t max_recv_per_poll = 64;
 };
 
 // One node's SWIM membership + failure detector over a UdpTransport (§5.9). Single peer set,
@@ -59,7 +62,9 @@ class Swim {
     void join(const Endpoint& introducer);
 
     // Drain and process every datagram currently readable from the transport.
-    void poll();
+    // Returns true if it stopped at SwimConfig::max_recv_per_poll with datagrams
+    // possibly still queued.
+    bool poll();
 
     // Advance the failure detector: start/conclude periods, escalate to indirect probes,
     // expire suspicions to Dead. Uses tx_.now().

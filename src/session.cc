@@ -211,9 +211,22 @@ void Session::send_probe() {
 // receive path
 // ---------------------------------------------------------------------------
 
-void Session::poll() {
+bool Session::poll() {
     std::array<std::byte, kMaxDatagram> buf{};
-    while (auto r = tx_.recv(buf)) {
+    std::uint32_t drained = 0;
+    bool hit_bound = false;
+    // Bound checked before the read, not after: consuming a datagram and then
+    // breaking would drop it on the floor.
+    while (true) {
+        if (drained >= cfg_.max_recv_per_poll) {
+            hit_bound = true;
+            break;
+        }
+        const auto r = tx_.recv(buf);
+        if (!r) {
+            break;
+        }
+        ++drained;
         Packet p{};
         if (decode(std::span<const std::byte>(buf.data(), r->size), p) != DecodeError::Ok) {
             continue; // malformed / corrupt - drop
@@ -236,6 +249,7 @@ void Session::poll() {
     }
     pump();
     maybe_arm_persist();
+    return hit_bound;
 }
 
 void Session::tick() {

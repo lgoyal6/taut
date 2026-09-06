@@ -252,10 +252,20 @@ void Swim::send_swim(PacketType type, const Endpoint& to, std::uint32_t probe_id
     }
 }
 
-void Swim::poll() {
+bool Swim::poll() {
     std::array<std::byte, kMaxDatagram> buf{};
-    while (auto r = tx_.recv(buf)) {
-        const Endpoint from = r->from; // r is engaged here (loop guard); capture before gossip loop
+    std::uint32_t drained = 0;
+    // Bound checked before the read so a datagram is never consumed and discarded.
+    while (true) {
+        if (drained >= cfg_.max_recv_per_poll) {
+            return true;
+        }
+        const auto r = tx_.recv(buf);
+        if (!r) {
+            break;
+        }
+        ++drained;
+        const Endpoint from = r->from; // captured before the gossip loop reuses buf
         Packet p{};
         if (decode(std::span<const std::byte>(buf.data(), r->size), p) != DecodeError::Ok) {
             continue; // malformed / corrupt - drop
@@ -317,6 +327,7 @@ void Swim::poll() {
             break;
         }
     }
+    return false;
 }
 
 void Swim::handle_ping(const Endpoint& from, std::uint32_t probe_id) {

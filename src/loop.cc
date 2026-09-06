@@ -68,6 +68,12 @@ void EventLoop::run() {
     }
 }
 
+namespace {
+// Mirrors Config::max_recv_per_poll. The loop has no Config, and level-triggered
+// epoll re-reports the socket, so nothing is lost by returning early.
+constexpr std::uint32_t kMaxRecvPerTick = 64;
+} // namespace
+
 void EventLoop::run_once(int timeout_ms) {
     std::array<epoll_event, 16> evs{};
     const int n = ::epoll_wait(epfd_, evs.data(), static_cast<int>(evs.size()), timeout_ms);
@@ -87,8 +93,14 @@ void EventLoop::run_once(int timeout_ms) {
             if (reg.fd != fd) {
                 continue;
             }
-            // Drain every queued datagram (safe under level-triggered too).
-            while (auto res = reg.transport->recv(buf)) {
+            // Bounded drain (level-triggered, so anything left is re-reported on the
+            // next tick). Unbounded, one busy socket holds run_once() forever and every
+            // other registration - and the caller's timer tick - starves behind it.
+            for (std::uint32_t drained = 0; drained < kMaxRecvPerTick; ++drained) {
+                const auto res = reg.transport->recv(buf);
+                if (!res) {
+                    break;
+                }
                 reg.handler(res->from, std::span<const std::byte>(buf.data(), res->size));
             }
         }

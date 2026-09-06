@@ -15,6 +15,14 @@ struct Config {
     // Fixed send window in packets (§5.4). No congestion control in v1 (§5.8).
     std::uint16_t window_pkts{64};
 
+    // Ceiling on datagrams consumed by one poll() before returning to the caller
+    // (§5.7). The drain used to be unbounded: a peer that keeps a socket readable
+    // could hold poll() forever, and since tick() only runs after poll() returns,
+    // retransmit timers and every other peer starve behind it. poll() now returns
+    // true when it stops at this bound, so a caller that wants to keep draining can
+    // loop - but it gets to run its timers between passes.
+    std::uint32_t max_recv_per_poll{64};
+
     // Max application payload per datagram. The header (§5.2) is carved out of the
     // 1200 B datagram budget; see docs/DESIGN-codec.md for the exact ceiling.
     std::uint16_t mtu_payload{1200};
