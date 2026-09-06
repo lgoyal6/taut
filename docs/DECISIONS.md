@@ -152,3 +152,18 @@ the rest are recorded factually because the alternative was simply worse.
   (docs/DESIGN-swim.md "Post-Dead refutation channel".)
 - Rationale: part of the standing tautq mandate ("finish all modules") - the chaos
   suite's §5 assertions define correctness; this was a straight bug against them.
+
+### D28. Per-poll drain bound: **`max_recv_per_poll` (default 64)**, `poll()` returns "more work"
+- `Session::poll()`, `Swim::poll()` and `EventLoop::run_once()` drained the socket until
+  EAGAIN. The loop is single-threaded and `tick()` - RTO retransmits, the SWIM failure
+  detector - only runs *after* `poll()` returns, so a peer that keeps datagrams arriving
+  could hold the loop inside `poll()` and starve every timer and every other peer behind
+  it. On a closed mesh that is a liveness bug, not a theoretical one: the thing that
+  starves is the 25 ms retransmit floor that is the whole thesis.
+- `poll()` now stops after `max_recv_per_poll` datagrams and returns `true` when it did,
+  so a caller that wants to keep draining loops - but runs its timers between passes.
+  The bound is checked *before* the read: consuming a datagram and then breaking would
+  drop it. Level-triggered epoll re-reports the socket, so nothing is lost.
+- `tests/unit/drain_bound_test.cc` pins it. Negative control: neutralising the bound
+  (leaving the code compiling) fails all three tests; restoring it passes 61/61.
+

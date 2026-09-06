@@ -45,7 +45,9 @@ class Session {
     bool send(Class cls, ByteSpan payload);
 
     // Process every datagram currently readable from the transport.
-    void poll();
+    // Returns true if it stopped at Config::max_recv_per_poll with datagrams
+    // possibly still queued; the caller may poll() again after running tick().
+    bool poll();
 
     // Fire any due timers: RTO retransmits and the zero-window persist probe.
     void tick();
