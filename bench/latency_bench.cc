@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "bench/common.h"
+#include "bench/resource.h"
 #include "taut/config.h"
 #include "taut/session.h"
 #include "taut/transport.h"
@@ -109,6 +110,14 @@ int run_receiver(const bench::Args& a) {
     std::vector<double> samples;
     samples.reserve(1u << 20);
     std::uint64_t received = 0, max_seq = 0, goodput_bytes = 0;
+    // What went wrong, counted rather than dropped on the floor. A payload too short to
+    // carry the header used to `return` silently, so a framing bug would have shown up as
+    // a slightly lower delivery ratio and nothing else. A sequence that does not advance
+    // is a duplicate or a reorder; the receiver cannot tell which from one number, so it
+    // reports the count and does not claim to know.
+    std::uint64_t err_short = 0, err_nonmonotonic = 0;
+    std::uint64_t last_seq_seen = 0;
+    bool have_last_seq = false;
     std::uint64_t first_recv_ns = 0, last_recv_ns = 0;
     bool got_end = false;
     std::uint64_t last_activity_ns = bench::now_ns();
@@ -116,6 +125,7 @@ int run_receiver(const bench::Args& a) {
 
     session.on_message([&](taut::Class, taut::ByteSpan payload) {
         if (payload.size() < bench::kMsgHeader) {
+            ++err_short;
             return;
         }
         std::uint64_t ts = 0, seq = 0;
@@ -132,6 +142,11 @@ int run_receiver(const bench::Args& a) {
         last_recv_ns = recv;
         ++received;
         goodput_bytes += msg;
+        if (have_last_seq && seq <= last_seq_seen) {
+            ++err_nonmonotonic;
+        }
+        last_seq_seen = seq;
+        have_last_seq = true;
         if (seq > max_seq) {
             max_seq = seq;
         }
@@ -167,8 +182,21 @@ int run_receiver(const bench::Args& a) {
                std::to_string(secs) + "," + std::to_string(mbps);
         bench::append_csv(a.out, bench::key_header() + ",received,goodput_bytes,secs,goodput_mbps",
                           row);
-        std::fprintf(stderr, "taut recv[thru]: %llu msgs, %.2f Mbit/s over %.2fs\n",
-                     static_cast<unsigned long long>(received), mbps, secs);
+        const bench::Resources res = bench::sample_resources();
+        const std::uint64_t errors = err_short + err_nonmonotonic;
+        char detail[128];
+        std::snprintf(detail, sizeof detail, "short=%llu nonmono=%llu",
+                      static_cast<unsigned long long>(err_short),
+                      static_cast<unsigned long long>(err_nonmonotonic));
+        bench::append_csv(bench::resource_path(a.out), bench::resource_header(),
+                          bench::resource_row("recv-thru", errors, detail, res, received));
+        std::fprintf(stderr,
+                     "taut recv[thru]: %llu msgs, %.2f Mbit/s over %.2fs | errors=%llu (%s) "
+                     "rss_peak=%.1fMB rss_steady=%.1fMB cpu=%.2fs\n",
+                     static_cast<unsigned long long>(received), mbps, secs,
+                     static_cast<unsigned long long>(errors), detail,
+                     static_cast<double>(res.rss_peak) / 1048576.0,
+                     static_cast<double>(res.rss_steady) / 1048576.0, res.cpu_s);
         return 0;
     }
 
@@ -183,11 +211,29 @@ int run_receiver(const bench::Args& a) {
                       bench::key_header() +
                           ",offered,received,p50_ms,p90_ms,p99_ms,p999_ms,min_ms,max_ms,mean_ms",
                       row);
+    const bench::Resources res = bench::sample_resources();
+    // Offered minus received is the error that matters most here and the one a latency
+    // table hides: a message that never arrived contributes no sample, so dropping it
+    // improves every percentile in the row above.
+    const std::uint64_t undelivered = offered > received ? offered - received : 0;
+    const std::uint64_t errors = undelivered + err_short + err_nonmonotonic;
+    char detail[160];
+    std::snprintf(detail, sizeof detail, "undelivered=%llu short=%llu nonmono=%llu",
+                  static_cast<unsigned long long>(undelivered),
+                  static_cast<unsigned long long>(err_short),
+                  static_cast<unsigned long long>(err_nonmonotonic));
+    bench::append_csv(bench::resource_path(a.out), bench::resource_header(),
+                      bench::resource_row("recv-lat", errors, detail, res, received));
     std::fprintf(stderr,
                  "taut recv[lat cls%d loss%.0f%%]: offered=%llu recv=%llu p50=%.2f p99=%.2f "
-                 "p999=%.2f max=%.2f ms\n",
+                 "p999=%.2f max=%.2f ms | errors=%llu (%s) rss_peak=%.1fMB rss_steady=%.1fMB "
+                 "cpu=%.2fs ivcsw=%llu\n",
                  a.taut_class, a.loss_pct, static_cast<unsigned long long>(offered),
-                 static_cast<unsigned long long>(received), p.p50, p.p99, p.p999, p.max);
+                 static_cast<unsigned long long>(received), p.p50, p.p99, p.p999, p.max,
+                 static_cast<unsigned long long>(errors), detail,
+                 static_cast<double>(res.rss_peak) / 1048576.0,
+                 static_cast<double>(res.rss_steady) / 1048576.0, res.cpu_s,
+                 static_cast<unsigned long long>(res.ivcsw));
     return 0;
 }
 
@@ -278,9 +324,28 @@ int run_sender(const bench::Args& a) {
     }
     const double mult =
         sent > 0 ? static_cast<double>(tx.tx_datagrams()) / static_cast<double>(sent) : 0.0;
-    std::fprintf(stderr, "taut send[cls%d loss%.0f%%]: sent=%llu tx_datagrams=%llu (%.2fx)\n",
+    const bench::Resources res = bench::sample_resources();
+    // The sender's error is the offered work it never managed to hand to the transport
+    // before the wall-cap. In open-loop mode the schedule says how many arrivals the run
+    // was supposed to produce; anything short of that is offered work that was dropped by
+    // the load generator itself, and reporting only `sent` would hide it.
+    const std::uint64_t scheduled =
+        a.mode == "throughput" ? sent : bench::schedule_count(a.seed, a.rate, a.duration_s);
+    const std::uint64_t unoffered = scheduled > sent ? scheduled - sent : 0;
+    char detail[128];
+    std::snprintf(detail, sizeof detail, "unoffered=%llu",
+                  static_cast<unsigned long long>(unoffered));
+    bench::append_csv(bench::resource_path(a.send_out.empty() ? a.out : a.send_out),
+                      bench::resource_header(),
+                      bench::resource_row("send", unoffered, detail, res, sent));
+    std::fprintf(stderr,
+                 "taut send[cls%d loss%.0f%%]: sent=%llu tx_datagrams=%llu (%.2fx) | "
+                 "errors=%llu (%s) rss_peak=%.1fMB rss_steady=%.1fMB cpu=%.2fs\n",
                  a.taut_class, a.loss_pct, static_cast<unsigned long long>(sent),
-                 static_cast<unsigned long long>(tx.tx_datagrams()), mult);
+                 static_cast<unsigned long long>(tx.tx_datagrams()), mult,
+                 static_cast<unsigned long long>(unoffered), detail,
+                 static_cast<double>(res.rss_peak) / 1048576.0,
+                 static_cast<double>(res.rss_steady) / 1048576.0, res.cpu_s);
     return 0;
 }
 
@@ -354,14 +419,24 @@ int run_rr_client(const bench::Args& a) {
     bool got_reply = false;
     std::vector<double> samples;
     samples.reserve(1u << 18);
+    // Closed loop, one outstanding, so the reply to request N must be N. A stale or
+    // duplicate reply would still set got_reply and would still push a sample, and the
+    // sample would be timed from the wrong request. Counting the mismatch is what keeps
+    // correctness held fixed while the latency distribution is compared.
+    std::uint64_t err_short = 0, err_seq_mismatch = 0, err_timeout = 0;
+    std::uint64_t expect_seq = 0;
     session.on_message([&](taut::Class, taut::ByteSpan payload) {
         if (payload.size() < bench::kMsgHeader) {
+            ++err_short;
             return;
         }
         std::uint64_t ts = 0, seq = 0;
         bench::read_msg(payload, ts, seq);
         if (seq == bench::kEndSeq) {
             return;
+        }
+        if (seq != expect_seq) {
+            ++err_seq_mismatch;
         }
         samples.push_back(static_cast<double>(bench::now_ns() - ts) / 1e6); // round trip
         got_reply = true;
@@ -376,6 +451,7 @@ int run_rr_client(const bench::Args& a) {
     while (bench::now_ns() - start < dur_ns) {
         bench::write_msg(buf, bench::now_ns(), seq); // stamp actual send instant (true round trip)
         got_reply = false;
+        expect_seq = seq;
         while (!session.send(cls, payload)) {
             pump();
         }
@@ -386,6 +462,11 @@ int run_rr_client(const bench::Args& a) {
         while (!got_reply && bench::now_ns() < cap) {
             session.poll();
             session.tick();
+        }
+        if (!got_reply) {
+            // The cap fired. The old loop moved on silently, so a wedged transport
+            // produced a short run with a clean-looking percentile table.
+            ++err_timeout;
         }
     }
 
@@ -417,12 +498,29 @@ int run_rr_client(const bench::Args& a) {
         bench::append_csv(a.send_out, bench::key_header() + ",sent,tx_datagrams,tx_payload_bytes",
                           s);
     }
+    const bench::Resources res = bench::sample_resources();
+    const std::uint64_t missing = sent > p.n ? sent - p.n : 0;
+    const std::uint64_t errors = missing + err_short + err_seq_mismatch + err_timeout;
+    char detail[192];
+    std::snprintf(detail, sizeof detail, "missing=%llu timeout=%llu seq_mismatch=%llu short=%llu",
+                  static_cast<unsigned long long>(missing),
+                  static_cast<unsigned long long>(err_timeout),
+                  static_cast<unsigned long long>(err_seq_mismatch),
+                  static_cast<unsigned long long>(err_short));
+    bench::append_csv(bench::resource_path(a.out), bench::resource_header(),
+                      bench::resource_row("rr-client", errors, detail, res, p.n));
     std::fprintf(stderr,
                  "taut rr[cls%d loss%.0f%%]: n=%zu p50=%.2f p99=%.2f p999=%.2f max=%.2f ms "
-                 "(%.2fx wire)\n",
+                 "(%.2fx wire) | errors=%llu (%s) rss_peak=%.1fMB rss_steady=%.1fMB cpu=%.2fs "
+                 "cpu_us_per_msg=%.2f ivcsw=%llu\n",
                  a.taut_class, a.loss_pct, p.n, p.p50, p.p99, p.p999, p.max,
                  sent > 0 ? static_cast<double>(tx.tx_datagrams()) / static_cast<double>(sent)
-                          : 0.0);
+                          : 0.0,
+                 static_cast<unsigned long long>(errors), detail,
+                 static_cast<double>(res.rss_peak) / 1048576.0,
+                 static_cast<double>(res.rss_steady) / 1048576.0, res.cpu_s,
+                 p.n ? res.cpu_s * 1e6 / static_cast<double>(p.n) : 0.0,
+                 static_cast<unsigned long long>(res.ivcsw));
     return 0;
 }
 
