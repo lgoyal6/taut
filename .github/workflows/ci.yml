@@ -24,6 +24,33 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
+  # Proves the *installed* package is usable, which an in-tree
+  # add_subdirectory build does not: install to a prefix, then configure
+  # examples/telemetry on its own against only that prefix and run it. The
+  # example asserts its own invariants (exactly-once in-order delivery across a
+  # 20% loss link, retransmits actually happened) and exits nonzero on mismatch.
+  consumer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build
+      - name: Build and install taut
+        run: |
+          cmake -S . -B build/inst -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++ -DTAUT_BUILD_TESTS=OFF
+          cmake --build build/inst --target taut
+          cmake --install build/inst --prefix "${RUNNER_TEMP}/prefix"
+      - name: Build the example against the installed package only
+        run: |
+          cmake -S examples/telemetry -B "${RUNNER_TEMP}/telemetry" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${RUNNER_TEMP}/prefix"
+          cmake --build "${RUNNER_TEMP}/telemetry"
+          "${RUNNER_TEMP}/telemetry/telemetry"
+
   format:
     runs-on: ubuntu-latest
     steps:
@@ -34,7 +61,7 @@ jobs:
           sudo apt-get install -y clang-format
       - name: clang-format --dry-run --Werror
         run: |
-          find include src tests -type f \( -name '*.cc' -o -name '*.h' \) -print0 \
+          find include src tests examples -type f \( -name '*.cc' -o -name '*.h' \) -print0 \
             | xargs -0 clang-format --dry-run --Werror
 
   clang-tidy:
