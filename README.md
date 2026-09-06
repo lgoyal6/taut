@@ -131,6 +131,7 @@ lost packet.
 ```cpp
 #include <taut/session.h>
 #include <taut/sim_net.h>
+using namespace std::chrono_literals;   // the 2ms below
 
 taut::SimNet net(99, taut::Impairments{.loss = 0.20, .delay = 2ms, .jitter = 1ms});
 taut::Endpoint a{1, 1}, b{2, 2};
@@ -139,6 +140,11 @@ taut::Session sa(net.endpoint(a), b, cfg);
 taut::Session sb(net.endpoint(b), a, cfg);
 
 sb.on_message([&](taut::Class, taut::ByteSpan p) { /* deliver */ });
+
+// ByteSpan is std::span<const std::byte> (taut/types.h): a borrowed view, so
+// the bytes must outlive the send.
+std::string msg = "reading-1";
+taut::ByteSpan payload(reinterpret_cast<const std::byte*>(msg.data()), msg.size());
 
 if (!sa.send(taut::Class::ReliableOrdered, payload)) {
     // window full: drain and retry, do not drop
@@ -157,8 +163,10 @@ are portable, which is enough to build and test against on macOS.
 
 ## Build
 
-Requires clang 17+, CMake ≥ 3.24, and Ninja. `epoll` and `netem` are Linux-only, so on
-macOS develop inside a Linux VM (Lima; see [CONTRIBUTING.md](CONTRIBUTING.md)).
+Requires clang 17+, CMake ≥ 3.24, and Ninja - the presets name that generator and
+that compiler, so a missing Ninja stops the configure step outright rather than
+falling back to make. `brew install cmake ninja` on macOS,
+`apt install clang cmake ninja-build` on Debian/Ubuntu.
 
 ```bash
 cmake --preset dev            # Debug + ASan/UBSan
@@ -167,6 +175,34 @@ ctest --preset dev
 cmake --preset release        # Release build
 cmake --build --preset release
 ```
+
+**On macOS this is the whole suite, not a subset.** Only the real UDP socket, the
+epoll loop and the `netem` bench are Linux-only; the codec, RTO estimator, window,
+timers, SWIM and SimNet are portable, and every protocol test runs over SimNet.
+`ctest --preset dev` is 61/61 on Apple silicon. What you cannot do natively is the
+`netem` soak and the `send_file`/`recv_file` demos below, which need real sockets
+and `tc`. For those, either a Linux VM or a container from this directory:
+
+```bash
+docker run --rm -v "$PWD:/src" -v taut-linux-build:/src/build -w /src ubuntu:24.04 bash -c \
+  'apt-get update -qq && apt-get install -y -qq clang cmake ninja-build git ca-certificates \
+   && cmake --preset dev && cmake --build --preset dev && ctest --preset dev'
+```
+
+The second volume is what keeps the two builds apart, and leaving it out is the
+one way this goes wrong. A CMake cache records the absolute paths it was
+configured with, so a `build/dev` written by the macOS run above is a build tree
+belonging to `/Users/you/taut`, and the container mounting the same directory at
+`/src` refuses it outright: *"the current CMakeCache.txt directory
+/src/build/dev is different than the directory ... where CMakeCache.txt was
+created"*, which is an accurate complaint about a path the reader never chose.
+Mounting a volume over `/src/build` gives the container its own build tree and
+leaves the host's untouched, so the two can alternate freely. Clear it later
+with `docker volume rm taut-linux-build`.
+
+The container run is 62/62 rather than the 61 above: the extra one is
+`EventLoop.EchoesDatagramThroughEpoll`, which is the whole reason to reach for
+Linux here.
 
 ## Run: file-transfer reliability demo
 
