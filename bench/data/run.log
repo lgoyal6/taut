@@ -1,5 +1,5 @@
 run_matrix: losses=[0 1 5 10 20] runs=5 dur=10s rate=500/s rtt=30ms classes=[1 2] enet=1
-run_matrix: binaries in /Users/lakshgoyal/taut/build/bench/bench, CSVs to /Users/lakshgoyal/taut/bench/data
+run_matrix: binaries in build/bench/bench, CSVs to bench/data
 === rr @ loss 0% (RTT 30ms) ===
 tcp rr-server: done
 tcp rr[loss0%]: n=247 p50=40.19 p99=50.29 p999=60.38 max=60.38 ms
@@ -451,4 +451,4 @@ taut recv[thru]: 21184 msgs, 8.66 Mbit/s over 10.02s
 taut send[cls1 loss0%]: sent=21184 tx_datagrams=21756 (1.03x)
 taut recv[thru]: 21184 msgs, 8.66 Mbit/s over 10.01s
 taut send[cls2 loss0%]: sent=21184 tx_datagrams=21709 (1.02x)
-run_matrix: done. CSVs in /Users/lakshgoyal/taut/bench/data
+run_matrix: done. CSVs in bench/data
