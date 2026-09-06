@@ -39,6 +39,11 @@ IP_A=10.9.0.1
 IP_B=10.9.0.2
 DELAY=$((RTT / 2)) # netem one-way delay; RTT = 2 * DELAY
 
+# This script's stdout is committed as bench/data/run.log, the provenance record
+# for the CSVs beside it, so paths printed here must not carry the operator's
+# home directory. Print anything under the repo root relative to it.
+rel() { printf '%s' "${1#"${ROOT}"/}"; }
+
 TAUT_PORT=9000
 TCP_PORT=9100
 ENET_PORT=9200
@@ -53,7 +58,7 @@ have_enet=0
 [[ -x "${BIN}/enet_baseline" ]] && have_enet=1
 
 echo "run_matrix: losses=[${LOSSES}] runs=${RUNS} dur=${DURATION}s rate=${RATE}/s rtt=${RTT}ms classes=[${TAUT_CLASSES}] enet=${have_enet}"
-echo "run_matrix: binaries in ${BIN}, CSVs to ${DATA}"
+echo "run_matrix: binaries in $(rel "${BIN}"), CSVs to $(rel "${DATA}")"
 
 # Fresh topology + fresh CSVs for a clean, reproducible matrix.
 bash "${SCRIPT_DIR}/netns_bench.sh" >/dev/null
@@ -168,5 +173,5 @@ fi
 # Hand CSV ownership back to the invoking user so git/commit is painless.
 if [[ -n "${SUDO_USER:-}" ]]; then chown -R "${SUDO_USER}:$(id -gn "${SUDO_USER}")" "${DATA}"; fi
 
-echo "run_matrix: done. CSVs in ${DATA}"
+echo "run_matrix: done. CSVs in $(rel "${DATA}")"
 bash "${SCRIPT_DIR}/netns_teardown.sh" >/dev/null || true
