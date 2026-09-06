@@ -167,3 +167,27 @@ the rest are recorded factually because the alternative was simply worse.
 - `tests/unit/drain_bound_test.cc` pins it. Negative control: neutralising the bound
   (leaving the code compiling) fails all three tests; restoring it passes 61/61.
 
+### D29. Batched receive (`recvmmsg`): **measured, rejected, reverted**
+- Hypothesis: the packet loop is syscall-bound, so collapsing a drain burst into one
+  `recvmmsg` should pay. `strace -c` under sustained load supported the premise -
+  `sendto` + `recvfrom` were **99.9% of syscall time**, and the drain averaged ~9
+  datagrams per poll (54,849 successful `recvfrom` against 5,847 EAGAIN).
+- Implemented `recv_batch` on `UdpTransport` (default: loop `recv()`, so SimNet needed no
+  code) with a `recvmmsg` override on `RealUdpTransport`. It worked: **2.107 → 1.136
+  syscalls per message (-46%)**, receive syscalls **-88%**.
+- It bought nothing. Clean A/B, no strace, 3 reps each:
+  - saturating throughput: 261.96 vs 260.56 Mbit/s - batched arm marginally *slower*, noise.
+  - request-reply (the tail-latency thesis workload): p999 **1.19 ms → 1.31 ms**,
+    consistently worse across reps; p50 identical at 1.00 ms.
+- Why: that workload is send-bound. After batching, `sendto` was 88% of syscall time and
+  is 1:1 with messages - `sendmmsg` would only help by *waiting* to coalesce, which is
+  exactly the delay taut exists to avoid. Cutting the 11% side harder cannot show up.
+- Reverted rather than kept: a 46% syscall reduction that moves no user-visible number,
+  costs an extra virtual on the transport interface, and nudges the tail the wrong way is
+  a worse design. Kept the drain bound (D28), which is a correctness fix.
+- Sharp edge found on the way, worth recording even though the feature is gone: a
+  `UdpTransport` **decorator** that does not forward a batched read silently inherits the
+  base-class loop and collapses the batching back to one syscall per datagram, with no
+  error. The bench's `CountingTransport` did exactly that, and the first "after"
+  measurement showed zero `recvmmsg` calls. Any future batched path needs decorators to
+  forward it.
