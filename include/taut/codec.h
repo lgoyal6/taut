@@ -54,6 +54,7 @@ struct Packet {
     PacketType type;
     std::uint8_t flags;
     Class cls;
+    // Reliable/class-0 data sequence, or standalone-ACK generation for PacketType::Ack.
     std::uint32_t seq;
     std::uint32_t cum_ack;
     std::uint16_t adv_window;

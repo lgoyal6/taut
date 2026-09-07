@@ -50,7 +50,82 @@ bool peek(std::span<const std::byte> d, taut::PacketType& type, std::uint16_t& a
     return true;
 }
 
+std::vector<std::byte> ack(std::uint32_t ack_seq, std::uint16_t adv) {
+    taut::Packet packet{};
+    packet.type = taut::PacketType::Ack;
+    packet.cls = taut::Class::Unreliable;
+    packet.seq = ack_seq;
+    packet.cum_ack = 0;
+    packet.adv_window = adv;
+    std::vector<std::byte> bytes(taut::kBaseHeaderSize);
+    const auto size = taut::encode(packet, bytes);
+    bytes.resize(size);
+    return bytes;
+}
+
 } // namespace
+
+// Two window advertisements can have the same cumulative ACK. Packet.seq orders standalone
+// ACK generations so reordering cannot let an older closed window clobber a newer reopen.
+TEST(Flow, EqualCumAckUsesStandaloneAckGeneration) {
+    tlink::TestLink net;
+    const auto a = ep(1);
+    const auto b = ep(2);
+    taut::Config cfg;
+    cfg.window_pkts = 4;
+    taut::Session sender(net.endpoint(a), b, cfg);
+
+    const auto reopened = ack(2, 4);
+    const auto stale_closed = ack(1, 0);
+    net.inject(b, a, reopened);
+    sender.poll();
+    ASSERT_EQ(sender.peer_adv_window(), 4u);
+
+    net.inject(b, a, stale_closed);
+    sender.poll();
+    EXPECT_EQ(sender.peer_adv_window(), 4u);
+
+    const auto fresh_closed = ack(3, 0);
+    net.inject(b, a, fresh_closed);
+    sender.poll();
+    EXPECT_EQ(sender.peer_adv_window(), 0u);
+}
+
+TEST(Flow, StandaloneAckGenerationOrdersAcrossWrap) {
+    tlink::TestLink net;
+    const auto a = ep(1);
+    const auto b = ep(2);
+    taut::Config cfg;
+    cfg.window_pkts = 4;
+    taut::Session sender(net.endpoint(a), b, cfg);
+
+    for (const auto& packet : {ack(UINT32_MAX - 1, 0), ack(UINT32_MAX, 1), ack(1, 2)}) {
+        net.inject(b, a, packet);
+        sender.poll();
+    }
+    ASSERT_EQ(sender.peer_adv_window(), 2u);
+
+    const auto stale = ack(UINT32_MAX - 1, 0);
+    net.inject(b, a, stale);
+    sender.poll();
+    EXPECT_EQ(sender.peer_adv_window(), 2u);
+}
+
+TEST(Flow, LegacyZeroAckGenerationStillUpdatesWindow) {
+    tlink::TestLink net;
+    const auto a = ep(1);
+    const auto b = ep(2);
+    taut::Config cfg;
+    cfg.window_pkts = 4;
+    taut::Session sender(net.endpoint(a), b, cfg);
+
+    for (const auto window : {std::uint16_t{0}, std::uint16_t{4}}) {
+        const auto legacy_ack = ack(0, window);
+        net.inject(b, a, legacy_ack);
+        sender.poll();
+    }
+    EXPECT_EQ(sender.peer_adv_window(), 4u);
+}
 
 // A receiver that stops draining fills its buffer, drives the advertised window to zero, and
 // stalls the sender - then resumes with no deadlock, no buffer overflow, and every message

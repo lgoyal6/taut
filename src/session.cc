@@ -13,6 +13,13 @@ constexpr std::chrono::milliseconds kMaxRto{2000};
 // Zero-window persist timer bounds (§5.6): start 100 ms, ×2 backoff, cap 1 s.
 constexpr std::chrono::milliseconds kPersistMin{100};
 constexpr std::chrono::milliseconds kPersistMax{1000};
+
+// RFC 1982-style serial comparison for the standalone-ACK generation counter.
+// The ambiguous half-range difference cannot occur in a bounded live receive queue.
+bool serial_after(std::uint32_t candidate, std::uint32_t current) {
+    const std::uint32_t distance = candidate - current;
+    return distance != 0 && distance < 0x80000000u;
+}
 } // namespace
 
 Session::Session(UdpTransport& transport, Endpoint peer, Config cfg)
@@ -152,6 +159,39 @@ void Session::process_sack(std::uint32_t cum_ack, std::uint64_t bitmap) {
     }
 }
 
+void Session::process_window_update(const Packet& packet) {
+    if (packet.cum_ack < last_ack_) {
+        return;
+    }
+
+    if (packet.cum_ack > last_ack_) {
+        peer_adv_window_ = packet.adv_window;
+        last_ack_ = packet.cum_ack;
+        if (packet.type == PacketType::Ack && packet.seq != 0) {
+            last_ack_seq_ = packet.seq;
+            ack_seq_initialized_ = true;
+        }
+        return;
+    }
+
+    // cum_ack did not advance, so it cannot order two different flow-control states.
+    // Standalone ACKs carry a generation in Packet.seq; accept only the newer one.
+    // Equal-ack piggyback fields are advisory and wait for the receiver's standalone ACK.
+    if (packet.type == PacketType::Ack) {
+        // Version 0.2.1 standalone ACKs left seq at zero. Preserve their flow-control
+        // behavior until this peer demonstrates generation support with a nonzero value.
+        if (packet.seq == 0) {
+            if (!ack_seq_initialized_) {
+                peer_adv_window_ = packet.adv_window;
+            }
+        } else if (!ack_seq_initialized_ || serial_after(packet.seq, last_ack_seq_)) {
+            peer_adv_window_ = packet.adv_window;
+            last_ack_seq_ = packet.seq;
+            ack_seq_initialized_ = true;
+        }
+    }
+}
+
 void Session::retransmit(Slot& slot) {
     if (slot.sacked) {
         return; // already received; do not resend
@@ -231,12 +271,7 @@ bool Session::poll() {
         if (decode(std::span<const std::byte>(buf.data(), r->size), p) != DecodeError::Ok) {
             continue; // malformed / corrupt - drop
         }
-        // Update the send window only from a non-stale ack (cum_ack never goes backwards),
-        // so a reordered older ack can't clobber it with a stale window (RFC 793 WL rule).
-        if (p.cum_ack >= last_ack_) {
-            peer_adv_window_ = p.adv_window;
-            last_ack_ = p.cum_ack;
-        }
+        process_window_update(p);
         process_cum_ack(p.cum_ack);
         if ((p.flags & static_cast<std::uint8_t>(Flag::SackPresent)) != 0) {
             process_sack(p.cum_ack, p.sack);
@@ -396,6 +431,10 @@ void Session::send_ack() {
     Packet a{};
     a.type = PacketType::Ack;
     a.cls = Class::Unreliable;
+    a.seq = next_ack_seq_++;
+    if (next_ack_seq_ == 0) {
+        next_ack_seq_ = 1; // zero identifies legacy peers that do not generate ACK sequence IDs
+    }
     fill_ack_fields(a);
     std::array<std::byte, kBaseHeaderSize + kSackSize> out{};
     const std::size_t n = encode(a, out);
