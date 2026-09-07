@@ -119,6 +119,7 @@ class Session {
     std::size_t effective_window() const;
     void process_cum_ack(std::uint32_t cum_ack);
     void process_sack(std::uint32_t cum_ack, std::uint64_t bitmap);
+    void process_window_update(const Packet& packet);
     void retransmit(Slot& slot);      // timer-driven
     void fast_retransmit(Slot& slot); // SACK-driven (Reno on the bitmap)
     void maybe_arm_persist();
@@ -153,8 +154,11 @@ class Session {
     std::deque<Slot> ring_;                 // in-flight reliable packets, ascending seq
     TimerHeap timers_;
     std::unordered_map<TimerId, std::uint32_t> timer_to_seq_;
-    std::uint16_t peer_adv_window_; // last window advertised by the peer
-    std::uint32_t last_ack_ = 0;    // highest cum_ack seen (gates window updates)
+    std::uint16_t peer_adv_window_;  // last window advertised by the peer
+    std::uint32_t last_ack_ = 0;     // highest cumulative ack seen
+    std::uint32_t last_ack_seq_ = 0; // newest standalone-ack generation seen
+    bool ack_seq_initialized_ = false;
+    std::uint32_t next_ack_seq_ = 1; // generation in standalone ACK Packet.seq; zero is legacy
     std::uint32_t retransmit_count_ = 0;
     // zero-window persist timer (§5.6)
     bool persist_active_ = false;

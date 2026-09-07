@@ -59,6 +59,10 @@ class TestLink {
     void advance(std::chrono::milliseconds by) {
         now_ += by;
     }
+    void inject(const taut::Endpoint& from, const taut::Endpoint& to,
+                std::span<const std::byte> data) {
+        deliver(from, to, data);
+    }
     std::chrono::steady_clock::time_point now() const {
         return now_;
     }
