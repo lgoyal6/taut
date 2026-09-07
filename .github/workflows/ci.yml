@@ -51,6 +51,16 @@ jobs:
           cmake --build "${RUNNER_TEMP}/telemetry"
           "${RUNNER_TEMP}/telemetry/telemetry"
 
+  package-upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build
+      - run: ./scripts/test-package-upgrade.sh
+
   format:
     runs-on: ubuntu-latest
     steps:
