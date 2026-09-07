@@ -191,3 +191,20 @@ the rest are recorded factually because the alternative was simply worse.
   error. The bench's `CountingTransport` did exactly that, and the first "after"
   measurement showed zero `recvmmsg` calls. Any future batched path needs decorators to
   forward it.
+
+### D30. Equal-cumulative-ACK flow control: **standalone-ACK generation in `Packet.seq`**
+- A bounded TLA+ model found a two-delivery stale-window counterexample in the old
+  `cum_ack >= last_ack_` rule: a newer reopen followed by a reordered older close left the
+  sender stalled at window zero.
+- Standalone ACK packets now carry a generation counter in their otherwise-unused `seq`
+  field. A larger cumulative ACK remains authoritative; at an equal cumulative ACK, only a
+  newer standalone-ACK generation updates the peer window. Serial-number arithmetic orders
+  the counter across wrap.
+- Generation zero remains a legacy marker because v0.2.1 emitted zero in every standalone
+  ACK. New sessions start at one and skip zero on wrap. A sender accepts repeated legacy-zero
+  updates until that peer demonstrates generation support, preserving mixed-version flow control.
+- The two-ACK model checks only this flow-control edge. Its exact counterexample is encoded
+  with the production codec and replayed through `Session`; the full transport is not
+  claimed as formally verified. See `formal/README.md`.
+- Alternative: prefer the larger window at equal cumulative ACK. Rejected because it fixes
+  stale close-after-open ordering but mishandles the opposite open-before-close transition.

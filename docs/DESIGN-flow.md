@@ -37,9 +37,18 @@ reliable class are parked in a bounded `pending_` queue first (backpressure = th
 `pump()` drains it as the window allows. The internal queue exists so the session *knows it has
 data to send* even when the window is shut - which is what drives the persist timer below.
 
-Window updates are accepted only from a non-stale ack: `peer_adv_window_` is refreshed only
-when `cum_ack ≥ last_ack_` (cum_ack is monotonic), so a reordered older ack can't clobber the
-window with a stale value (RFC 793's WL rule, simplified).
+Window updates are accepted only from a non-stale ACK. A larger `cum_ack` is authoritative.
+When `cum_ack` is unchanged, standalone ACK packets are ordered by a generation counter in
+their otherwise-unused `Packet.seq` field. Equal-ACK data piggybacks do not change the window;
+the receiver emits a standalone ACK for every reliable receive and window reopen. The sender
+uses an RFC 1982-style serial comparison so a reordered older close cannot clobber a newer
+reopen, including across counter wrap. Generation zero is reserved for v0.2.1 peers, which
+did not populate ACK `seq`; repeated zero updates remain accepted until a peer sends a
+nonzero generation.
+
+The bounded model and the exact C++ replay live in [`../formal`](../formal/README.md). The
+seeded old rule, which accepted every equal cumulative ACK, fails after the two-delivery trace
+`open(seq=2) -> stale close(seq=1)`. The production rule rejects the stale second update.
 
 ## Invariant 3, stated precisely
 

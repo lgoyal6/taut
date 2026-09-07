@@ -161,6 +161,21 @@ unit-test against taut on any platform. The real UDP transport and the epoll
 loop are **Linux-only**; the codec, CRC, RTO estimator, timers, SWIM and SimNet
 are portable, which is enough to build and test against on macOS.
 
+## Model-check one flow-control edge
+
+The [`formal`](formal/README.md) check models reordered window updates whose cumulative ACK
+does not advance. Its seeded old policy finds a two-delivery counterexample; the fixed policy
+exhausts the bounded state space, then the conformance harness replays that exact trace through
+the real codec and `Session` implementation:
+
+```bash
+./formal/run.sh
+```
+
+The run needs Python, CMake, Ninja, and a C++20 compiler, but no credentials or services. Its
+bound is intentionally narrow: two ACKs, two window values, and one sender/receiver pair. It
+does not claim a proof of the complete transport.
+
 A whole program rather than a fragment lives in
 [`examples/telemetry`](examples/telemetry): 500 readings pushed across a 20 % loss
 link on class 2, arriving exactly once and in order, with the retransmits and the
@@ -216,7 +231,7 @@ cmake --build --preset release
 **On macOS this is the whole suite, not a subset.** Only the real UDP socket, the
 epoll loop and the `netem` bench are Linux-only; the codec, RTO estimator, window,
 timers, SWIM and SimNet are portable, and every protocol test runs over SimNet.
-`ctest --preset dev` is 61/61 on Apple silicon. What you cannot do natively is the
+`ctest --preset dev` is 64/64 on Apple silicon. What you cannot do natively is the
 `netem` soak and the `send_file`/`recv_file` demos below, which need real sockets
 and `tc`. For those, either a Linux VM or a container from this directory:
 
@@ -237,9 +252,8 @@ Mounting a volume over `/src/build` gives the container its own build tree and
 leaves the host's untouched, so the two can alternate freely. Clear it later
 with `docker volume rm taut-linux-build`.
 
-The container run is 62/62 rather than the 61 above: the extra one is
-`EventLoop.EchoesDatagramThroughEpoll`, which is the whole reason to reach for
-Linux here.
+The Linux run adds `EventLoop.EchoesDatagramThroughEpoll` to the 64 portable tests, which is
+the whole reason to reach for Linux here.
 
 ## Run: file-transfer reliability demo
 
