@@ -187,6 +187,12 @@ class 0 heartbeats: 10 offered, 8 arrived (loss here is allowed)
 OK
 ```
 
+`scripts/test-package-upgrade.sh` installs tagged v0.2.1, builds and runs a
+retained external consumer, upgrades the same prefix to v0.2.2, and runs the
+consumer again. The consumer compares the package metadata to the linked
+library version. Its negative control requires an incompatible exact 0.3
+package and must fail configuration. CI fetches release tags and runs this gate.
+
 Those numbers are the same on every run and every platform: SimNet draws its
 impairments from a seeded engine, so a given seed is byte-identical wherever you run
 it. The transcript above is the default seed, 7, which is what CI runs; pass another
