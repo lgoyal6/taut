@@ -20,7 +20,7 @@ offset size field
 3      1    flags          bit0 SACK-present, bit1 membership-piggyback,
                            bit2 keyed-CRC (fuzz build only, §6.2), rest reserved = 0
 4      1    class          0=Unreliable 1=ReliableUnordered 2=ReliableOrdered
-5      4    seq            u32 (see "sequence spaces" below)
+5      4    seq            u32 (data sequence, or standalone-ACK generation)
 9      4    cum_ack        u32, highest reliable seq received with no gaps below it
 13     2    adv_window     u16, receiver free buffer, IN PACKETS (flow control, §5.6)
 15     2    payload_len    u16
@@ -67,6 +67,11 @@ reconciles the loose §5.1 sketch, where the name reads as if payload could be a
    advance past - pinning the SACK window base forever and, after 64 further packets,
    making the fixed bitmap unable to represent live reliable packets. Separating class 0
    removes that failure entirely at the cost of one extra small counter per peer.
+
+   Standalone `ACK` packets do not carry application data, so their `seq` field instead
+   carries a separate ACK-generation counter. It orders flow-control changes when `cum_ack`
+   stays equal. Generation zero is reserved for legacy peers that did not populate this field.
+   See docs/DESIGN-flow.md and D30.
 
 4. **Acks ride on everything; delayed pure-ACKs.** Every outgoing packet carries the
    current `cum_ack`/`adv_window`. A standalone ACK is emitted only when there's no

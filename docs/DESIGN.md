@@ -49,7 +49,7 @@ offset size field
 3      1    flags          bit0 SACK-present, bit1 membership-piggyback,
                            bit2 keyed-CRC (see §6.2), rest reserved=0
 4      1    class          0=Unreliable 1=ReliableUnordered 2=ReliableOrdered
-5      4    seq            u32, per-peer-pair, single sequence space
+5      4    seq            u32, data sequence or standalone-ACK generation
 9      4    cum_ack        highest seq received with no gaps below it
 13     2    adv_window     receiver's free buffer, in packets (flow control)
 15     2    payload_len
@@ -63,7 +63,8 @@ offset size field
 Decisions embedded here (know why for each - they get asked):
 - **Single seq space per peer-pair**, ordering enforced only for class 2 at the
   receiver. Simpler than per-class spaces; document the duplicate-detection
-  consequence for class 0.
+  consequence for class 0. Standalone ACK packets reuse this field for their own
+  generation counter so equal-cumulative-ACK window changes remain ordered.
 - **Cumulative ack + 64-bit SACK bitmap** rather than SACK ranges: fixed size, O(1),
   covers a 64-packet window exactly.
 - **CRC32C** (Castagnoli): hardware instruction on x86 (SSE4.2) and ARM; write the
