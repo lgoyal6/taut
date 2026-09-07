@@ -1,0 +1,5 @@
+# Exact minimal violating delivery order from the bounded model.
+# kind cum_ack ack_seq adv_window
+ack 0 2 1
+ack 0 1 0
+expect_window 1
