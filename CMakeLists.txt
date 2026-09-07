@@ -24,6 +24,7 @@ endif()
 option(TAUT_BUILD_TESTS "Build taut tests" ${TAUT_DEFAULT_EXTRAS})
 option(TAUT_BUILD_DEMOS "Build the echo and SWIM mesh demo binaries" ${TAUT_DEFAULT_EXTRAS})
 option(TAUT_BUILD_FUZZERS "Build libFuzzer targets (clang only)" OFF)
+option(TAUT_BUILD_FORMAL "Build the bounded-model conformance harness" OFF)
 option(TAUT_INSTALL "Generate install and package-config rules" ${TAUT_DEFAULT_EXTRAS})
 
 # The core library. CORE modules (codec, window, rto, timers, rx, flow, swim, loop)
@@ -82,6 +83,11 @@ endif()
 
 if(TAUT_BUILD_FUZZERS)
     add_subdirectory(fuzz)
+endif()
+
+if(TAUT_BUILD_FORMAL)
+    add_executable(taut_formal_conformance formal/conformance.cc)
+    target_link_libraries(taut_formal_conformance PRIVATE taut taut_warnings)
 endif()
 
 # ---- Benchmarks (§7) - opt-in; not part of the default dev/CI loop ---------------------
