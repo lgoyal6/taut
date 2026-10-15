@@ -85,15 +85,17 @@ created_a=0
 created_b=0
 created_network=0
 created_volume=0
+copy_results() {
+    if [[ "${TOPOLOGY}" == "docker" ]] && (( created_a )); then
+        for csv in latency send throughput latency.resources send.resources throughput.resources; do
+            docker cp "${NS_A}:${CONTAINER_DATA}/${csv}.csv" "${DATA}/${csv}.csv" 2>/dev/null || true
+        done
+    fi
+}
 cleanup_docker() {
     local status=$?
+    copy_results
     if [[ "${TOPOLOGY}" == "docker" ]]; then
-        # Retain available CSVs even when setup or a measurement exits early.
-        if (( created_a )); then
-            for csv in latency send throughput; do
-                docker cp "${NS_A}:${CONTAINER_DATA}/${csv}.csv" "${DATA}/${csv}.csv" 2>/dev/null || true
-            done
-        fi
         if (( created_a )); then docker rm -f "${DOCKER_A}" >/dev/null 2>&1 || true; fi
         if (( created_b )); then docker rm -f "${DOCKER_B}" >/dev/null 2>&1 || true; fi
         if (( created_network )); then docker network rm "${DOCKER_NET}" >/dev/null 2>&1 || true; fi
@@ -140,6 +142,7 @@ fi
 if [[ ! -f "${WIRE_CSV}" ]]; then
     echo "transport,cls,mode,loss_pct,rtt_ms,rate,run,seed,wire_tx_bytes,wire_rx_bytes" >"${WIRE_CSV}"
 fi
+echo "transport,cls,mode,loss_pct,rtt_ms,rate,run,seed,sender_exit,receiver_exit" >"${DATA}/process.csv"
 
 apply_netem() {
     local loss=$1
@@ -220,6 +223,7 @@ run_point() {
         ip netns exec "${NS_A}" "${bin}" ${common} ${sender_args} || sender_exit=$?
     fi
     wait "${rpid}" || receiver_exit=$?
+    echo "${transport},${cls},${mode},${loss},${RTT},${RATE},${run},${seed},${sender_exit},${receiver_exit}" >>"${DATA}/process.csv"
 
     tx1=$(wire_bytes tx_bytes)
     rx1=$(wire_bytes rx_bytes)
@@ -277,6 +281,44 @@ if [[ "${RUN_THROUGHPUT:-1}" == "1" ]]; then
     done
 fi
 
-# Docker CSVs are retained by the EXIT trap before its private volume is removed.
+# Compare every expected case with its actual CSV row before reporting success.
+# The EXIT trap also retains partial results if any earlier command failed.
+copy_results
+python3 - "${DATA}" <<'PYVERIFY'
+import csv
+from pathlib import Path
+import sys
+
+data = Path(sys.argv[1])
+def rows(name):
+    path = data / name
+    if not path.exists():
+        return []
+    with path.open() as source:
+        return list(csv.DictReader(source))
+
+def identity(row):
+    return tuple(row[k] for k in ('transport', 'cls', 'mode')) + tuple(
+        float(row[k]) for k in ('loss_pct', 'rtt_ms', 'rate', 'run', 'seed'))
+
+expected = rows('process.csv')
+if any(int(row[k]) for row in expected for k in ('sender_exit', 'receiver_exit')):
+    raise SystemExit('run_matrix: nonzero measurement exit in process.csv')
+for name in ('latency', 'throughput'):
+    cases = [r for r in expected if (r['mode'] == 'throughput') == (name == 'throughput')]
+    observed = rows(name + '.csv')
+    if [identity(r) for r in observed] != [identity(r) for r in cases]:
+        raise SystemExit(f'run_matrix: missing, duplicate or mismatched rows in {name}.csv')
+    resources = rows(name + '.resources.csv')
+    if len(resources) != sum(r['transport'] == 'taut' for r in cases):
+        raise SystemExit(f'run_matrix: missing or duplicate Taut resource rows for {name}')
+    if any(int(r['errors']) for r in resources):
+        raise SystemExit(f'run_matrix: Taut measurement errors in {name}.resources.csv')
+send_resources = rows('send.resources.csv')
+if len(send_resources) != sum(r['transport'] == 'taut' and r['mode'] != 'rr' for r in expected):
+    raise SystemExit('run_matrix: missing or duplicate Taut sender resource rows')
+if any(int(r['errors']) for r in send_resources):
+    raise SystemExit('run_matrix: Taut sender measurement errors')
+PYVERIFY
 echo "run_matrix: done. CSVs in $(rel "${DATA}")"
 if [[ "${TOPOLOGY}" == "netns" ]]; then bash "${SCRIPT_DIR}/netns_teardown.sh" >/dev/null || true; fi
