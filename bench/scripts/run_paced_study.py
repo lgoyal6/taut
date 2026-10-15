@@ -30,7 +30,7 @@ def run_command(command, commands, check=True, timeout=60):
                                    output=result.stdout, utc=time.time()))+'\n')
     if check and result.returncode:
         raise RuntimeError(f'command failed ({result.returncode}): {command}: {result.stdout}')
-    return result.stdout.strip()
+    return result
 
 
 def main():
@@ -57,17 +57,21 @@ def main():
     commands = (output/'commands.jsonl').open('a', buffering=1)
     resources = []
     def run(command, check=True):
-        return run_command(command, commands, check=check)
+        return run_command(command, commands, check=check).stdout.strip()
     def docker(*parts, **kw):
         return run(['docker', *map(str, parts)], **kw)
-    unique = 'b5-paced-'+uuid.uuid4().hex[:10]
+    owner = uuid.uuid4().hex
+    owner_label = 'taut.benchmark-owner'
+    unique = 'b5-paced-'+owner[:10]
     network, client, server = unique+'-net', unique+'-c', unique+'-s'
     try:
-        docker('network','create','--internal',network)
         resources.append(('network',network))
+        commands.write(json.dumps(dict(type='resource_intent', kind='network', name=network, owner=owner))+'\n')
+        docker('network','create','--internal','--label',owner_label+'='+owner,network)
         for container in (client,server):
-            docker('run','-d','--name',container,'--network',network,'--cpus=1','--memory=512m','--cap-add=NET_ADMIN',args.image,'sleep','infinity')
             resources.append(('container',container))
+            commands.write(json.dumps(dict(type='resource_intent', kind='container', name=container, owner=owner))+'\n')
+            docker('run','-d','--name',container,'--label',owner_label+'='+owner,'--network',network,'--cpus=1','--memory=512m','--cap-add=NET_ADMIN',args.image,'sleep','infinity')
             docker('cp',args.binary,container+':/opt/bench/paced_bench')
             docker('cp',root/'bench/quic_baseline.py',container+':/opt/bench/quic_baseline.py')
             docker('exec',container,'ethtool','-K','eth0','tso','off','gso','off','gro','off')
@@ -163,8 +167,21 @@ def main():
         cleanup_errors = []
         for kind,name in reversed(resources):
             try:
-                if kind=='container':docker('rm','-f',name)
-                else:docker('network','rm',name)
+                labels = '.Config.Labels' if kind == 'container' else '.Labels'
+                template = '{{.Id}} {{ index '+labels+' "'+owner_label+'" }}'
+                inspected = run_command(['docker','inspect','--type',kind,'--format',template,name], commands, check=False)
+                if inspected.returncode:
+                    if any(f'No such {label}: {name}' in inspected.stdout for label in (kind, 'object')):
+                        commands.write(json.dumps(dict(type='cleanup_skip', resource=name, reason='missing'))+'\n')
+                        continue
+                    raise RuntimeError(f'cannot inspect cleanup resource {name}: {inspected.stdout}')
+                resource_id, _, actual_owner = inspected.stdout.strip().partition(' ')
+                if actual_owner != owner:
+                    commands.write(json.dumps(dict(type='cleanup_skip', resource=name, reason='ownership_mismatch'))+'\n')
+                    continue
+                # Delete the verified immutable ID, avoiding a name-replacement race.
+                if kind=='container':docker('rm','-f',resource_id)
+                else:docker('network','rm',resource_id)
             except Exception as error:
                 cleanup_errors.append(str(error))
                 commands.write(json.dumps(dict(type='cleanup_error', resource=name,
