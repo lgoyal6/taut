@@ -9,9 +9,28 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
+
+
+def run_command(command, commands, check=True, timeout=60):
+    try:
+        result = subprocess.run(command, text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        output = error.output or ''
+        if isinstance(output, bytes):
+            output = output.decode(errors='replace')
+        commands.write(json.dumps(dict(command=command, exit=124, output=output,
+                                       timed_out=True, timeout_s=timeout, utc=time.time()))+'\n')
+        raise
+    commands.write(json.dumps(dict(command=command, exit=result.returncode,
+                                   output=result.stdout, utc=time.time()))+'\n')
+    if check and result.returncode:
+        raise RuntimeError(f'command failed ({result.returncode}): {command}: {result.stdout}')
+    return result.stdout.strip()
 
 
 def main():
@@ -38,11 +57,7 @@ def main():
     commands = (output/'commands.jsonl').open('a', buffering=1)
     resources = []
     def run(command, check=True):
-        result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        commands.write(json.dumps(dict(command=command, exit=result.returncode, output=result.stdout, utc=time.time()))+'\n')
-        if check and result.returncode:
-            raise RuntimeError(f'command failed ({result.returncode}): {command}: {result.stdout}')
-        return result.stdout.strip()
+        return run_command(command, commands, check=check)
     def docker(*parts, **kw):
         return run(['docker', *map(str, parts)], **kw)
     unique = 'b5-paced-'+uuid.uuid4().hex[:10]
@@ -114,11 +129,11 @@ def main():
                 try:
                     ce=cp.wait(timeout=45)
                 except subprocess.TimeoutExpired:
-                    cp.kill();cp.wait();ce=124
+                    cp.kill();cp.wait(timeout=10);ce=124
                 try:
                     se=sp.wait(timeout=10)
                 except subprocess.TimeoutExpired:
-                    sp.kill();sp.wait();se=124
+                    sp.kill();sp.wait(timeout=10);se=124
                 log.close();clog.close()
                 commands.write(json.dumps(dict(case=case['id'],arm=arm,client_exit=ce,server_exit=se))+'\n')
                 dest=case_dir/f'{index}-{arm}.csv'
@@ -145,10 +160,19 @@ def main():
                 return 1
         return int(any(str(r.get('errors'))!='0' or r['client_exit'] or r['server_exit'] for r in all_rows))
     finally:
+        cleanup_errors = []
         for kind,name in reversed(resources):
-            if kind=='container':docker('rm','-f',name,check=False)
-            else:docker('network','rm',name,check=False)
+            try:
+                if kind=='container':docker('rm','-f',name)
+                else:docker('network','rm',name)
+            except Exception as error:
+                cleanup_errors.append(str(error))
+                commands.write(json.dumps(dict(type='cleanup_error', resource=name,
+                                               error=str(error), utc=time.time()))+'\n')
+                print(f'cleanup failed for {name}: {error}', file=sys.stderr)
         commands.close()
+        if cleanup_errors and sys.exc_info()[0] is None:
+            raise RuntimeError('resource cleanup failed: '+'; '.join(cleanup_errors))
 
 if __name__=='__main__':
     raise SystemExit(main())
