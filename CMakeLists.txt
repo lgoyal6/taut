@@ -1,3 +1,6 @@
+# Builds and exports the taut library consumed by demos and downstream CMake projects.
+# Keeps optional tests, formal checks, fuzzers and benchmarks behind build flags.
+# Linux socket and epoll sources stay separate from the portable core.
 cmake_minimum_required(VERSION 3.24)
 project(taut LANGUAGES CXX VERSION 0.2.2)
 
@@ -38,6 +41,7 @@ add_library(taut STATIC
     src/timers.cc
     src/sim_net.cc
     src/rto.cc
+    src/congestion.cc
     src/session.cc
     src/swim.cc
 )
