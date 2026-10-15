@@ -1,0 +1,10 @@
+# Builds the local runner for the real aioquic benchmark arm.
+# requirements-quic.txt pins the implementation used by quic_baseline.py.
+# Network tools apply container-local impairment; measurements need no external account.
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates ethtool iproute2 openssl procps coreutils \
+    && rm -rf /var/lib/apt/lists/*
+COPY bench/requirements-quic.txt /tmp/requirements-quic.txt
+RUN python -m pip install --no-cache-dir -r /tmp/requirements-quic.txt
+WORKDIR /opt/bench

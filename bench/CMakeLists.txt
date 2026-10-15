@@ -1,3 +1,6 @@
+# Builds native transport benchmarks against the shared framing helpers.
+# paced_bench compares bounded TCP/Taut offers; legacy binaries retain prior controls.
+# ENet remains optional because its FetchContent dependency requires network access.
 # Benchmark binaries (§7). Enabled with -DTAUT_BUILD_BENCH=ON (see root CMakeLists); Linux
 # only (real sockets + ENet). Kept out of the default dev/CI build so the core loop stays
 # fast and network-free. Run these from a *release* build - sanitizers would dominate the
@@ -32,3 +35,6 @@ if(TAUT_BENCH_ENET)
     target_link_libraries(enet_baseline PRIVATE bench_common enet taut_test_warnings)
     target_include_directories(enet_baseline SYSTEM PRIVATE ${enet_SOURCE_DIR}/include)
 endif()
+
+add_executable(paced_bench paced_bench.cc)
+target_link_libraries(paced_bench PRIVATE taut bench_common taut_warnings)
