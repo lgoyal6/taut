@@ -1,3 +1,6 @@
+// Declares peer delivery, ACK handling and bounded receive/send queues.
+// session.cc drives congestion.h independently from ordering and flow control.
+// Call poll and tick from one event loop; endpoint reuse has no session epoch.
 #pragma once
 
 #include <chrono>
@@ -18,12 +21,6 @@
 
 namespace taut {
 
-// Reliable session with a single peer over a UdpTransport. Covers the send-buffer ring +
-// cumulative acks + SACK/fast-retransmit + RTO retransmit (send path), the three reliability
-// classes on the receive path (§5.3), and receiver-driven flow control with a zero-window
-// persist probe (§5.6). Driven by poll() (process inbound) and tick() (fire timers) - the
-// real event loop and the deterministic sim harness both just call those.
-//
 // Wire note: cum_ack here means "next expected sequence" (lowest reliable seq not yet
 // received), i.e. the TCP-style ack convention, which handles gaps unambiguously; this
 // refines PLAN §5.2's "highest received" wording (see docs/DESIGN-window.md). Consequently a
@@ -76,8 +73,15 @@ class Session {
     std::uint32_t retransmits() const {
         return retransmit_count_;
     }
+    // Datagram bytes accepted by the transport on reliable retransmission sends.
+    std::uint64_t retransmitted_bytes() const {
+        return retransmitted_bytes_;
+    }
     std::uint16_t peer_adv_window() const {
         return peer_adv_window_;
+    }
+    std::size_t congestion_window() const {
+        return congestion_.window();
     }
     std::uint16_t adv_window() const {
         return my_adv_window();
@@ -154,11 +158,13 @@ class Session {
     std::deque<Slot> ring_;                 // in-flight reliable packets, ascending seq
     TimerHeap timers_;
     std::unordered_map<TimerId, std::uint32_t> timer_to_seq_;
-    std::uint16_t peer_adv_window_;  // last window advertised by the peer
+    std::uint16_t peer_adv_window_; // last window advertised by the peer
+    CongestionControl congestion_;
     std::uint32_t last_ack_ = 0;     // highest cumulative ack seen
     std::uint32_t last_ack_seq_ = 0; // newest standalone-ack generation seen
     bool ack_seq_initialized_ = false;
     std::uint32_t next_ack_seq_ = 1; // generation in standalone ACK Packet.seq; zero is legacy
+    std::uint64_t retransmitted_bytes_ = 0;
     std::uint32_t retransmit_count_ = 0;
     // zero-window persist timer (§5.6)
     bool persist_active_ = false;

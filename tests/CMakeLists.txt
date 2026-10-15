@@ -1,3 +1,6 @@
+# Builds focused protocol tests and registers them with CTest.
+# The portable suite uses deterministic transports; epoll coverage is Linux-only.
+# GoogleTest stays a test dependency and is excluded from the installed package.
 include(FetchContent)
 FetchContent_Declare(
     googletest
@@ -24,6 +27,8 @@ add_executable(taut_unit
     unit/timers_test.cc
     unit/sim_net_test.cc
     unit/rto_test.cc
+    unit/transport_failure_test.cc
+    unit/congestion_test.cc
     unit/session_test.cc
     unit/sack_test.cc
     unit/rx_test.cc

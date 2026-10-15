@@ -1,3 +1,6 @@
+// Implements the peer session declared in taut/session.h.
+// Codec, RTT and timer modules handle framing and reliable recovery.
+// Congestion state limits new data without changing the wire format or delivery order.
 #include "taut/session.h"
 
 #include <algorithm>
@@ -24,7 +27,8 @@ bool serial_after(std::uint32_t candidate, std::uint32_t current) {
 
 Session::Session(UdpTransport& transport, Endpoint peer, Config cfg)
     : tx_(transport), peer_(peer), cfg_(cfg), rtt_(cfg.rto_floor, kMaxRto),
-      peer_adv_window_(cfg.window_pkts), capacity_(cfg.window_pkts) {}
+      peer_adv_window_(cfg.window_pkts),
+      congestion_(cfg.congestion, cfg.window_pkts, cfg.rto_floor), capacity_(cfg.window_pkts) {}
 
 // ---------------------------------------------------------------------------
 // send path
@@ -32,7 +36,8 @@ Session::Session(UdpTransport& transport, Endpoint peer, Config cfg)
 
 bool Session::send(Class cls, ByteSpan payload) {
     // The worst-case header is base + SACK; refuse anything that can't fit one datagram.
-    if (payload.size() > kMaxDatagram - kBaseHeaderSize - kSackSize) {
+    if (payload.size() > cfg_.mtu_payload ||
+        payload.size() > kMaxDatagram - kBaseHeaderSize - kSackSize) {
         return false;
     }
 
@@ -65,11 +70,14 @@ bool Session::send(Class cls, ByteSpan payload) {
 }
 
 std::size_t Session::effective_window() const {
-    return std::min<std::size_t>(cfg_.window_pkts, peer_adv_window_);
+    return std::min({static_cast<std::size_t>(cfg_.window_pkts),
+                     static_cast<std::size_t>(peer_adv_window_), congestion_.window()});
 }
 
 void Session::pump() {
     while (!pending_.empty() && ring_.size() < effective_window()) {
+        if (!congestion_.ready(tx_.now()))
+            break;
         PendingMsg msg = std::move(pending_.front());
         pending_.pop_front();
 
@@ -88,6 +96,7 @@ void Session::pump() {
         }
         datagram.resize(n);
         tx_.send(peer_, datagram);
+        congestion_.sent(tx_.now());
 
         const auto now = tx_.now();
         const auto rto = rtt_.rto();
@@ -108,8 +117,12 @@ void Session::process_cum_ack(std::uint32_t cum_ack) {
     const auto now = tx_.now();
     bool sampled = false;
     std::chrono::milliseconds rtt{};
+    std::size_t acknowledged = 0;
     while (!ring_.empty() && ring_.front().seq < cum_ack) {
         const Slot& s = ring_.front();
+        if (!s.sacked) {
+            ++acknowledged;
+        }
         // Karn: sample only never-retransmitted (unambiguous) acks, and only once per slot.
         if (s.transmit_count == 1 && !s.rtt_sampled) {
             rtt = std::chrono::duration_cast<std::chrono::milliseconds>(now - s.send_time);
@@ -121,11 +134,16 @@ void Session::process_cum_ack(std::uint32_t cum_ack) {
     }
     if (sampled) {
         rtt_.sample(rtt);
+        congestion_.sample_rtt(rtt);
+    }
+    if (acknowledged != 0) {
+        congestion_.acknowledge(acknowledged);
     }
 }
 
 void Session::process_sack(std::uint32_t cum_ack, std::uint64_t bitmap) {
     const auto now = tx_.now();
+    std::size_t acknowledged = 0;
     // Mark selectively-acked slots. A SACKed packet is known-received: cancel its RTO so it is
     // never wastefully retransmitted, and take its (unambiguous) RTT sample now rather than at
     // the later cumulative ack, which would over-measure.
@@ -136,15 +154,19 @@ void Session::process_sack(std::uint32_t cum_ack, std::uint64_t bitmap) {
         const std::uint32_t i = slot.seq - cum_ack - 1;
         if (i < 64 && ((bitmap >> i) & 1ull) != 0) {
             slot.sacked = true;
+            ++acknowledged;
             timers_.cancel(slot.timer);
             timer_to_seq_.erase(slot.timer);
             if (slot.transmit_count == 1 && !slot.rtt_sampled) {
-                rtt_.sample(
-                    std::chrono::duration_cast<std::chrono::milliseconds>(now - slot.send_time));
+                const auto sample =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(now - slot.send_time);
+                rtt_.sample(sample);
+                congestion_.sample_rtt(sample);
                 slot.rtt_sampled = true;
             }
         }
     }
+    congestion_.acknowledge(acknowledged);
 
     // Fast retransmit (§5.4): resend any un-SACKed slot that has ≥ 3 SACKed slots above it (the
     // Reno 3-dup-ack idea expressed on the bitmap). ring_ is ascending, so walk it backwards
@@ -154,6 +176,7 @@ void Session::process_sack(std::uint32_t cum_ack, std::uint64_t bitmap) {
         if (slot.sacked) {
             ++sacked_above;
         } else if (sacked_above >= 3 && !slot.fast_retransmitted) {
+            congestion_.loss(slot.seq, next_seq_);
             fast_retransmit(slot);
         }
     }
@@ -196,7 +219,8 @@ void Session::retransmit(Slot& slot) {
     if (slot.sacked) {
         return; // already received; do not resend
     }
-    tx_.send(peer_, slot.datagram);
+    retransmitted_bytes_ += tx_.send(peer_, slot.datagram);
+    congestion_.loss(slot.seq, next_seq_);
     ++slot.transmit_count;
     ++retransmit_count_;
     slot.rto = std::min(slot.rto * 2, kMaxRto); // exponential backoff on timeout
@@ -206,7 +230,7 @@ void Session::retransmit(Slot& slot) {
 }
 
 void Session::fast_retransmit(Slot& slot) {
-    tx_.send(peer_, slot.datagram);
+    retransmitted_bytes_ += tx_.send(peer_, slot.datagram);
     ++slot.transmit_count; // Karn: its next ack yields no RTT sample
     ++retransmit_count_;
     slot.fast_retransmitted = true;
@@ -267,6 +291,8 @@ bool Session::poll() {
             break;
         }
         ++drained;
+        if (r->from != peer_)
+            continue;
         Packet p{};
         if (decode(std::span<const std::byte>(buf.data(), r->size), p) != DecodeError::Ok) {
             continue; // malformed / corrupt - drop
@@ -309,6 +335,7 @@ void Session::tick() {
             }
         }
     }
+    pump();
     maybe_arm_persist();
 }
 
