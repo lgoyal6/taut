@@ -1,5 +1,6 @@
 """Offline controls for benchmark failure reporting and retained partial output."""
 import contextlib
+import csv
 import io
 import json
 import os
@@ -69,7 +70,7 @@ class PacedCommandTests(unittest.TestCase):
 
 
 class MatrixProcessTests(unittest.TestCase):
-    def run_matrix(self, failure):
+    def run_matrix(self, failure, all_modes=False):
         with tempfile.TemporaryDirectory(prefix='b5-matrix-control-') as temp:
             root = Path(temp)
             bin_dir = root / 'bin'
@@ -85,19 +86,50 @@ if args[0] == 'exec' and 'cat' in args:
     print(100)
 if args[0] == 'exec' and '--role' in args:
     role = args[args.index('--role') + 1]
+    if '--out' in args and os.environ['FAILURE'] != 'missing_csv':
+        import csv
+        target = Path(os.environ['FIXTURE_DATA']) / Path(args[args.index('--out') + 1]).name
+        fields = ['transport', 'cls', 'mode', 'loss_pct', 'rtt_ms', 'rate', 'run', 'seed']
+        flags = ['--transport', '--class', '--mode', '--loss', '--rtt', '--rate', '--run', '--seed']
+        row = [args[args.index(f) + 1] if f in args else '' for f in flags]
+        fresh = not target.exists()
+        with target.open('a') as output:
+            writer = csv.writer(output)
+            if fresh: writer.writerow(fields)
+            writer.writerow(row)
+        if row[0] == 'taut':
+            resource = target.with_suffix('.resources.csv')
+            fresh = not resource.exists()
+            with resource.open('a') as output:
+                writer = csv.writer(output)
+                if fresh: writer.writerow(['role', 'errors'])
+                writer.writerow(['rr-client', int(os.environ['FAILURE'] == 'resource_error')])
+    if role == 'sender' and args[args.index('--transport') + 1] == 'taut' and args[args.index('--mode') + 1] != 'rr':
+        import csv
+        resource = Path(os.environ['FIXTURE_DATA']) / 'send.resources.csv'
+        fresh = not resource.exists()
+        with resource.open('a') as output:
+            writer = csv.writer(output)
+            if fresh: writer.writerow(['role', 'errors'])
+            writer.writerow(['sender', 0])
     if role == os.environ['FAILURE']:
         sys.exit(9)
 if args[0] == 'cp' and ':/bench-data/' in args[1]:
-    Path(args[2]).write_text('partial output\\n')
+    import shutil
+    origin = Path(os.environ['FIXTURE_DATA']) / args[1].rsplit('/', 1)[-1]
+    if not origin.exists(): sys.exit(1)
+    shutil.copyfile(origin, args[2])
 ''')
             docker.chmod(0o755)
             env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ['PATH'],
                        CALLS=str(root / 'calls'), FAILURE=failure, TOPOLOGY='docker',
+                       FIXTURE_DATA=str(root),
                        DATA_DIR=str(root / 'output'), BIN=str(bin_dir), LOSSES='0',
-                       RUNS='1', RUN_RR='1', RUN_OPENLOOP='0', RUN_THROUGHPUT='0')
+                       RUNS='1', RUN_RR='1', RUN_OPENLOOP=str(int(all_modes)),
+                       RUN_THROUGHPUT=str(int(all_modes)))
             result = subprocess.run(
                 ['bash', str(Path(__file__).with_name('run_matrix.sh'))],
-                env=env, capture_output=True, text=True, timeout=15)
+                env=env, capture_output=True, text=True, timeout=30)
             calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
             measurements = [a for a in calls if '--role' in a]
             copied = [i for i, a in enumerate(calls)
@@ -105,19 +137,30 @@ if args[0] == 'cp' and ':/bench-data/' in args[1]:
             removed = [i for i, a in enumerate(calls) if a[:2] == ['rm', '-f']]
             self.assertTrue(copied)
             self.assertLess(max(copied), min(removed))
-            self.assertEqual((root / 'output/latency.csv').read_text(), 'partial output\n')
+            if failure != 'missing_csv':
+                self.assertIn('transport,cls,mode', (root / 'output/latency.csv').read_text())
             self.assertEqual(len((root / 'output/wire.csv').read_text().splitlines()),
-                             3 if failure == 'none' else 2)
+                             2 if failure in ('sender', 'receiver') else (7 if all_modes else 3))
+            with (root / 'output/process.csv').open() as source:
+                statuses = list(csv.DictReader(source))
+            self.assertEqual(int(statuses[0]['sender_exit']), 9 if failure == 'sender' else 0)
+            self.assertEqual(int(statuses[0]['receiver_exit']), 9 if failure == 'receiver' else 0)
+            if failure == 'resource_error':
+                with (root / 'output/latency.resources.csv').open() as source:
+                    self.assertEqual(int(next(csv.DictReader(source))['errors']), 1)
             if failure == 'none':
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('run_matrix: done.', result.stdout)
-                self.assertEqual(len(measurements), 4)
-            else:
+                self.assertEqual(len(measurements), 12 if all_modes else 4)
+            elif failure in ('sender', 'receiver'):
                 self.assertEqual(result.returncode, 9, result.stderr)
                 self.assertNotIn('run_matrix: done.', result.stdout)
                 self.assertEqual(len(measurements), 2)
                 self.assertIn('sender_exit=', result.stderr)
                 self.assertIn('receiver_exit=', result.stderr)
+            else:
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('run_matrix: done.', result.stdout)
 
     def test_sender_failure_stops_after_retaining_outputs(self):
         self.run_matrix('sender')
@@ -127,6 +170,15 @@ if args[0] == 'cp' and ':/bench-data/' in args[1]:
 
     def test_valid_matrix_still_completes(self):
         self.run_matrix('none')
+
+    def test_valid_matrix_covers_rr_openloop_and_throughput(self):
+        self.run_matrix('none', all_modes=True)
+
+    def test_zero_exit_without_csv_is_not_success(self):
+        self.run_matrix('missing_csv')
+
+    def test_zero_exit_with_resource_errors_is_not_success(self):
+        self.run_matrix('resource_error')
 
 
 if __name__ == '__main__':
