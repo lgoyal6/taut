@@ -1,0 +1,4 @@
+# Pins the real QUIC implementation used by quic_baseline.py.
+# Dockerfile.quic installs this local comparison dependency.
+# Recorded image digests bind the full runtime used for measured trials.
+aioquic==1.6.1
