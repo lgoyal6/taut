@@ -48,14 +48,20 @@ class PacedCommandTests(unittest.TestCase):
             binary = root / 'binary'
             binary.write_bytes(b'fixture')
             calls = []
+            labels = {}
 
             def command(argv, log, **kwargs):
                 calls.append(argv)
+                if '--label' in argv:
+                    name = argv[-1] if argv[1] == 'network' else argv[argv.index('--name') + 1]
+                    labels[name] = argv[argv.index('--label') + 1].split('=', 1)[1]
+                if argv[1] == 'inspect':
+                    return subprocess.CompletedProcess(argv, 0, 'id-'+argv[-1]+' '+labels[argv[-1]])
                 if argv[1] == 'cp':
                     raise ValueError('original setup failure')
                 if argv[1] == 'rm':
                     raise subprocess.TimeoutExpired(argv, 60)
-                return ''
+                return subprocess.CompletedProcess(argv, 0, '')
 
             args = ['runner', '--protocol', str(protocol), '--binary', str(binary),
                     '--output', str(root / 'out')]
