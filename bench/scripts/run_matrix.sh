@@ -1,21 +1,14 @@
 #!/usr/bin/env bash
-# Latency-vs-loss benchmark sweep (PLAN §7). For each loss point it runs, over the veth/netns
-# topology (netns_bench.sh), the identical 512 B / Poisson / N-second workload across:
-#   - kernel TCP (TCP_NODELAY)          tcp_baseline
-#   - ENet reliable channel             enet_baseline   (skipped if not built)
-#   - taut, each class in TAUT_CLASSES  latency_bench
-# and captures per-run latency percentiles (bench/data/latency.csv), send-side counts
-# (send.csv) and interface-level bytes-on-wire (wire.csv). Also runs a 0%-loss saturating
-# throughput point (throughput.csv) - the clean-link axis where TCP/ENet are expected to win.
-#
-# Re-execs under sudo (netns/tc need NET_ADMIN). The binaries do not need root; they inherit
-# it only because `ip netns exec` runs them in the namespace.
-#
-# Knobs (env): LOSSES RUNS DURATION RATE RTT TAUT_CLASSES MSG SEED0 BIN
-# Quick smoke:  LOSSES="0 5 20" RUNS=1 DURATION=3 bench/scripts/run_matrix.sh
+# Runs the retained TCP/Taut/optional ENet controls through netns or Docker.
+# run_paced_study.py owns the matched-offer and competing-flow comparisons.
+# Requires a fresh private DATA_DIR so an earlier receipt is never overwritten.
 set -euo pipefail
 
-if [[ ${EUID} -ne 0 ]]; then exec sudo -E "$0" "$@"; fi
+TOPOLOGY="${TOPOLOGY:-netns}"
+if [[ "${TOPOLOGY}" == "netns" && ${EUID} -ne 0 ]]; then
+    echo "netns mode requires an explicitly authorized root invocation" >&2
+    exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -28,8 +21,19 @@ RTT="${RTT:-30}"
 TAUT_CLASSES="${TAUT_CLASSES:-2}"
 MSG="${MSG:-512}"
 SEED0="${SEED0:-1}"
-BIN="${BIN:-${ROOT}/build/release/bench}"
-DATA="${ROOT}/bench/data"
+BIN_DEFAULT="${ROOT}/build/release/bench"
+if [[ "${TOPOLOGY}" == "docker" ]]; then BIN_DEFAULT="${ROOT}/build/docker-bench/bench"; fi
+BIN="${BIN:-${BIN_DEFAULT}}"
+DATA="${DATA_DIR:?Set DATA_DIR to a new private directory outside the checkout}"
+
+DOCKER_IMAGE="${DOCKER_IMAGE:-taut-linux}"
+RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:12])')"
+DOCKER_A="b5-bench-a-${RUN_ID}"
+DOCKER_B="b5-bench-b-${RUN_ID}"
+DOCKER_NET="b5-matrix-net-${RUN_ID}"
+DOCKER_VOLUME="b5-matrix-data-${RUN_ID}"
+CONTAINER_BIN=/opt/bench
+CONTAINER_DATA=/bench-data
 
 NS_A=benchA
 NS_B=benchB
@@ -37,18 +41,35 @@ VA=vbenchA
 VB=vbenchB
 IP_A=10.9.0.1
 IP_B=10.9.0.2
+if [[ "${TOPOLOGY}" == "docker" ]]; then
+    NS_A="${DOCKER_A}"
+    NS_B="${DOCKER_B}"
+    VA=eth0
+    VB=eth0
+    # Docker reserves the first address for its bridge gateway.
+    IP_A=10.9.0.2
+    IP_B=10.9.0.3
+    BIN="${BIN:-${ROOT}/build/docker-bench/bench}"
+fi
 DELAY=$((RTT / 2)) # netem one-way delay; RTT = 2 * DELAY
 
-# This script's stdout is committed as bench/data/run.log, the provenance record
-# for the CSVs beside it, so paths printed here must not carry the operator's
-# home directory. Print anything under the repo root relative to it.
+# Keep checkout paths relative in the retained command output.
 rel() { printf '%s' "${1#"${ROOT}"/}"; }
 
 TAUT_PORT=9000
 TCP_PORT=9100
 ENET_PORT=9200
 
-mkdir -p "${DATA}"
+DATA="$(python3 - "${DATA}" "${ROOT}" <<'PYDATA'
+from pathlib import Path
+import sys
+output, root = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
+if output == root or root in output.parents:
+    raise SystemExit("DATA_DIR must be outside the checkout")
+output.mkdir(parents=True, exist_ok=False)
+print(output)
+PYDATA
+)"
 LAT_CSV="${DATA}/latency.csv"
 SEND_CSV="${DATA}/send.csv"
 WIRE_CSV="${DATA}/wire.csv"
@@ -60,9 +81,52 @@ have_enet=0
 echo "run_matrix: losses=[${LOSSES}] runs=${RUNS} dur=${DURATION}s rate=${RATE}/s rtt=${RTT}ms classes=[${TAUT_CLASSES}] enet=${have_enet}"
 echo "run_matrix: binaries in $(rel "${BIN}"), CSVs to $(rel "${DATA}")"
 
+created_a=0
+created_b=0
+created_network=0
+created_volume=0
+cleanup_docker() {
+    if [[ "${TOPOLOGY}" == "docker" ]]; then
+        if (( created_a )); then docker rm -f "${DOCKER_A}" >/dev/null 2>&1 || true; fi
+        if (( created_b )); then docker rm -f "${DOCKER_B}" >/dev/null 2>&1 || true; fi
+        if (( created_network )); then docker network rm "${DOCKER_NET}" >/dev/null 2>&1 || true; fi
+        if (( created_volume )); then docker volume rm "${DOCKER_VOLUME}" >/dev/null 2>&1 || true; fi
+    fi
+}
+trap cleanup_docker EXIT
+
 # Fresh topology + fresh CSVs for a clean, reproducible matrix.
-bash "${SCRIPT_DIR}/netns_bench.sh" >/dev/null
-rm -f "${LAT_CSV}" "${SEND_CSV}" "${WIRE_CSV}" "${THRU_CSV}"
+if [[ "${TOPOLOGY}" == "netns" ]]; then
+    bash "${SCRIPT_DIR}/netns_bench.sh" >/dev/null
+elif [[ "${TOPOLOGY}" == "docker" ]]; then
+    command -v docker >/dev/null || { echo "run_matrix: docker CLI required for TOPOLOGY=docker" >&2; exit 1; }
+    docker network create --internal --subnet 10.9.0.0/24 --gateway 10.9.0.1 "${DOCKER_NET}" >/dev/null
+    created_network=1
+    docker volume create "${DOCKER_VOLUME}" >/dev/null
+    created_volume=1
+    docker run -d --name "${DOCKER_A}" --network "${DOCKER_NET}" --ip "${IP_A}" \
+        --cpus=1 --memory=1g --cap-add=NET_ADMIN -v "${DOCKER_VOLUME}:${CONTAINER_DATA}" \
+        "${DOCKER_IMAGE}" sleep infinity >/dev/null
+    created_a=1
+    docker run -d --name "${DOCKER_B}" --network "${DOCKER_NET}" --ip "${IP_B}" \
+        --cpus=1 --memory=1g --cap-add=NET_ADMIN -v "${DOCKER_VOLUME}:${CONTAINER_DATA}" \
+        "${DOCKER_IMAGE}" sleep infinity >/dev/null
+    created_b=1
+    docker exec "${DOCKER_A}" mkdir -p "${CONTAINER_BIN}" "${CONTAINER_DATA}"
+    docker exec "${DOCKER_B}" mkdir -p "${CONTAINER_BIN}" "${CONTAINER_DATA}"
+    for name in latency_bench tcp_baseline enet_baseline; do
+        if [[ -x "${BIN}/${name}" ]]; then
+            docker cp "${BIN}/${name}" "${DOCKER_A}:${CONTAINER_BIN}/${name}"
+            docker cp "${BIN}/${name}" "${DOCKER_B}:${CONTAINER_BIN}/${name}"
+        fi
+    done
+    docker exec "${DOCKER_A}" ethtool -K eth0 tso off gso off gro off
+    docker exec "${DOCKER_B}" ethtool -K eth0 tso off gso off gro off
+else
+    echo "run_matrix: TOPOLOGY must be netns or docker" >&2
+    exit 2
+fi
+
 if [[ ! -f "${WIRE_CSV}" ]]; then
     echo "transport,cls,mode,loss_pct,rtt_ms,rate,run,seed,wire_tx_bytes,wire_rx_bytes" >"${WIRE_CSV}"
 fi
@@ -71,17 +135,36 @@ apply_netem() {
     local loss=$1
     local spec="delay ${DELAY}ms"
     if [[ "${loss}" != "0" ]]; then spec="loss ${loss}% ${spec}"; fi
-    ip netns exec "${NS_A}" tc qdisc replace dev "${VA}" root netem ${spec}
-    ip netns exec "${NS_B}" tc qdisc replace dev "${VB}" root netem ${spec}
+    if [[ "${TOPOLOGY}" == "docker" ]]; then
+        docker exec "${NS_A}" tc qdisc replace dev "${VA}" root netem ${spec}
+        docker exec "${NS_B}" tc qdisc replace dev "${VB}" root netem ${spec}
+    else
+        ip netns exec "${NS_A}" tc qdisc replace dev "${VA}" root netem ${spec}
+        ip netns exec "${NS_B}" tc qdisc replace dev "${VB}" root netem ${spec}
+    fi
 }
 
-wire_bytes() { ip netns exec "${NS_A}" cat "/sys/class/net/${VA}/statistics/$1"; }
+wire_bytes() {
+    if [[ "${TOPOLOGY}" == "docker" ]]; then
+        docker exec "${NS_A}" cat "/sys/class/net/${VA}/statistics/$1"
+    else
+        ip netns exec "${NS_A}" cat "/sys/class/net/${VA}/statistics/$1"
+    fi
+}
 
 # run_point <transport> <bin> <port> <cls> <loss> <run> <seed> <mode>
 run_point() {
     local transport=$1 bin=$2 port=$3 cls=$4 loss=$5 run=$6 seed=$7 mode=$8
     local out_csv="${LAT_CSV}"
     [[ "${mode}" == "throughput" ]] && out_csv="${THRU_CSV}"
+    local container_bin="${bin}"
+    local container_out="${out_csv}"
+    local container_send="${SEND_CSV}"
+    if [[ "${TOPOLOGY}" == "docker" ]]; then
+        container_bin="${CONTAINER_BIN}/$(basename "${bin}")"
+        container_out="${CONTAINER_DATA}/$(basename "${out_csv}")"
+        container_send="${CONTAINER_DATA}/send.csv"
+    fi
 
     local common="--transport ${transport} --mode ${mode} --duration ${DURATION} --rate ${RATE}"
     common+=" --seed ${seed} --run ${run} --loss ${loss} --rtt ${RTT} --msg-size ${MSG}"
@@ -90,33 +173,41 @@ run_point() {
     case "${transport}" in
     taut)
         recv_args="--role receiver --bind ${IP_B} --addr ${IP_A} --port ${port} --class ${cls} --idle 4000"
-        sender_args="--role sender --bind ${IP_A} --addr ${IP_B} --port ${port} --class ${cls} --send-out ${SEND_CSV}"
+        sender_args="--role sender --bind ${IP_A} --addr ${IP_B} --port ${port} --class ${cls} --send-out ${container_send}"
         ;;
     tcp)
         recv_args="--role receiver --bind ${IP_B} --port ${port} --idle 4000"
-        sender_args="--role sender --addr ${IP_B} --port ${port} --send-out ${SEND_CSV}"
+        sender_args="--role sender --addr ${IP_B} --port ${port} --send-out ${container_send}"
         ;;
     enet)
         recv_args="--role receiver --bind 0.0.0.0 --port ${port} --idle 4000"
-        sender_args="--role sender --addr ${IP_B} --port ${port} --send-out ${SEND_CSV}"
+        sender_args="--role sender --addr ${IP_B} --port ${port} --send-out ${container_send}"
         ;;
     esac
     # The measuring side gets --out: for rr it is the client (sender role); for open-loop
     # latency/throughput it is the receiver.
     if [[ "${mode}" == "rr" ]]; then
-        sender_args+=" --out ${out_csv}"
+        sender_args+=" --out ${container_out}"
     else
-        recv_args+=" --out ${out_csv}"
+        recv_args+=" --out ${container_out}"
     fi
 
     local tx0 rx0 tx1 rx1
     tx0=$(wire_bytes tx_bytes)
     rx0=$(wire_bytes rx_bytes)
 
-    ip netns exec "${NS_B}" "${bin}" ${common} ${recv_args} &
+    if [[ "${TOPOLOGY}" == "docker" ]]; then
+        docker exec "${NS_B}" "${container_bin}" ${common} ${recv_args} &
+    else
+        ip netns exec "${NS_B}" "${bin}" ${common} ${recv_args} &
+    fi
     local rpid=$!
     sleep 0.5
-    ip netns exec "${NS_A}" "${bin}" ${common} ${sender_args} || true
+    if [[ "${TOPOLOGY}" == "docker" ]]; then
+        docker exec "${NS_A}" "${container_bin}" ${common} ${sender_args} || true
+    else
+        ip netns exec "${NS_A}" "${bin}" ${common} ${sender_args} || true
+    fi
     wait "${rpid}" || true
 
     tx1=$(wire_bytes tx_bytes)
@@ -170,8 +261,14 @@ if [[ "${RUN_THROUGHPUT:-1}" == "1" ]]; then
     done
 fi
 
+# In Docker mode, copy results out of the private named volume before deleting it.
+if [[ "${TOPOLOGY}" == "docker" ]]; then
+    docker cp "${NS_A}:${CONTAINER_DATA}/latency.csv" "${LAT_CSV}" 2>/dev/null || true
+    docker cp "${NS_A}:${CONTAINER_DATA}/send.csv" "${SEND_CSV}" 2>/dev/null || true
+    docker cp "${NS_A}:${CONTAINER_DATA}/throughput.csv" "${THRU_CSV}" 2>/dev/null || true
+fi
 # Hand CSV ownership back to the invoking user so git/commit is painless.
 if [[ -n "${SUDO_USER:-}" ]]; then chown -R "${SUDO_USER}:$(id -gn "${SUDO_USER}")" "${DATA}"; fi
 
 echo "run_matrix: done. CSVs in $(rel "${DATA}")"
-bash "${SCRIPT_DIR}/netns_teardown.sh" >/dev/null || true
+if [[ "${TOPOLOGY}" == "netns" ]]; then bash "${SCRIPT_DIR}/netns_teardown.sh" >/dev/null || true; fi
