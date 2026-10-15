@@ -86,12 +86,22 @@ created_b=0
 created_network=0
 created_volume=0
 cleanup_docker() {
+    local status=$?
     if [[ "${TOPOLOGY}" == "docker" ]]; then
+        # Retain available CSVs even when setup or a measurement exits early.
+        if (( created_a )); then
+            for csv in latency send throughput; do
+                docker cp "${NS_A}:${CONTAINER_DATA}/${csv}.csv" "${DATA}/${csv}.csv" 2>/dev/null || true
+            done
+        fi
         if (( created_a )); then docker rm -f "${DOCKER_A}" >/dev/null 2>&1 || true; fi
         if (( created_b )); then docker rm -f "${DOCKER_B}" >/dev/null 2>&1 || true; fi
         if (( created_network )); then docker network rm "${DOCKER_NET}" >/dev/null 2>&1 || true; fi
         if (( created_volume )); then docker volume rm "${DOCKER_VOLUME}" >/dev/null 2>&1 || true; fi
     fi
+    # Copying from Docker may create root-owned files, including on failure.
+    if [[ -n "${SUDO_USER:-}" ]]; then chown -R "${SUDO_USER}:$(id -gn "${SUDO_USER}")" "${DATA}"; fi
+    return "${status}"
 }
 trap cleanup_docker EXIT
 
@@ -203,16 +213,22 @@ run_point() {
     fi
     local rpid=$!
     sleep 0.5
+    local sender_exit=0 receiver_exit=0
     if [[ "${TOPOLOGY}" == "docker" ]]; then
-        docker exec "${NS_A}" "${container_bin}" ${common} ${sender_args} || true
+        docker exec "${NS_A}" "${container_bin}" ${common} ${sender_args} || sender_exit=$?
     else
-        ip netns exec "${NS_A}" "${bin}" ${common} ${sender_args} || true
+        ip netns exec "${NS_A}" "${bin}" ${common} ${sender_args} || sender_exit=$?
     fi
-    wait "${rpid}" || true
+    wait "${rpid}" || receiver_exit=$?
 
     tx1=$(wire_bytes tx_bytes)
     rx1=$(wire_bytes rx_bytes)
     echo "${transport},${cls},${mode},${loss}.000000,${RTT}.000000,${RATE}.000000,${run},${seed},$((tx1 - tx0)),$((rx1 - rx0))" >>"${WIRE_CSV}"
+    if (( sender_exit || receiver_exit )); then
+        echo "run_matrix: failed ${transport}/${mode}: sender_exit=${sender_exit} receiver_exit=${receiver_exit}; stopping before another case" >&2
+        if (( sender_exit )); then return "${sender_exit}"; fi
+        return "${receiver_exit}"
+    fi
     sleep 0.3
 }
 
@@ -261,14 +277,6 @@ if [[ "${RUN_THROUGHPUT:-1}" == "1" ]]; then
     done
 fi
 
-# In Docker mode, copy results out of the private named volume before deleting it.
-if [[ "${TOPOLOGY}" == "docker" ]]; then
-    docker cp "${NS_A}:${CONTAINER_DATA}/latency.csv" "${LAT_CSV}" 2>/dev/null || true
-    docker cp "${NS_A}:${CONTAINER_DATA}/send.csv" "${SEND_CSV}" 2>/dev/null || true
-    docker cp "${NS_A}:${CONTAINER_DATA}/throughput.csv" "${THRU_CSV}" 2>/dev/null || true
-fi
-# Hand CSV ownership back to the invoking user so git/commit is painless.
-if [[ -n "${SUDO_USER:-}" ]]; then chown -R "${SUDO_USER}:$(id -gn "${SUDO_USER}")" "${DATA}"; fi
-
+# Docker CSVs are retained by the EXIT trap before its private volume is removed.
 echo "run_matrix: done. CSVs in $(rel "${DATA}")"
 if [[ "${TOPOLOGY}" == "netns" ]]; then bash "${SCRIPT_DIR}/netns_teardown.sh" >/dev/null || true; fi
