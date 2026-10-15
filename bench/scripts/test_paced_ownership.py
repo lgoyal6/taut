@@ -39,7 +39,9 @@ class PacedOwnershipTests(unittest.TestCase):
                     name = argv[-1]
                     if name not in resources:
                         kind = argv[argv.index('--type') + 1]
-                        return subprocess.CompletedProcess(argv, 1, f'Error: No such {kind}: {name}\n')
+                        message = (f'network {name} not found' if kind == 'network'
+                                   else f'No such container: {name}')
+                        return subprocess.CompletedProcess(argv, 1, f'Error response from daemon: {message}\n')
                     kind, resource_id, owner = resources[name]
                     return subprocess.CompletedProcess(argv, 0, f'{resource_id} {owner}\n')
                 elif argv[1] == 'rm' or argv[1:3] == ['network', 'rm']:

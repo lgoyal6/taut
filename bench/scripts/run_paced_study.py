@@ -171,7 +171,8 @@ def main():
                 template = '{{.Id}} {{ index '+labels+' "'+owner_label+'" }}'
                 inspected = run_command(['docker','inspect','--type',kind,'--format',template,name], commands, check=False)
                 if inspected.returncode:
-                    if any(f'No such {label}: {name}' in inspected.stdout for label in (kind, 'object')):
+                    if (any(f'No such {label}: {name}' in inspected.stdout for label in (kind, 'object'))
+                            or f'{kind} {name} not found' in inspected.stdout):
                         commands.write(json.dumps(dict(type='cleanup_skip', resource=name, reason='missing'))+'\n')
                         continue
                     raise RuntimeError(f'cannot inspect cleanup resource {name}: {inspected.stdout}')
